@@ -1,0 +1,34 @@
+{
+	"compilerOptions": {
+		"experimentalDecorators": true,
+    	"emitDecoratorMetadata": true,
+    	"strictPropertyInitialization": false,
+		"module": "commonjs",
+		"target": "ES2017",
+		"strict": true,
+		"noEmit": false,
+		"importHelpers": true,
+		"moduleResolution": "node",
+		"esModuleInterop": true,
+		"allowSyntheticDefaultImports": true,
+		"sourceMap": true,
+		"baseUrl": "./src",
+		"paths": {
+		  "~/*": ["./*"],
+		  "~data/*": ["src/data/*"]
+		},
+        "outDir": "./dist",
+		"types": [
+			"phaser"
+		]
+	},
+	"include": [
+		"src/**/*",
+		"types/**/*",
+    	"script-nodes/**/*"
+	],
+	"exclude": [
+	  "node_modules",
+	  "types/process.env.ts"  // Exclude custom types file
+	]
+}

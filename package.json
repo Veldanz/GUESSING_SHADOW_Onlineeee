@@ -1,0 +1,47 @@
+{
+  "name": "phaser3-webpack-template",
+  "version": "1.0.0",
+  "description": "Phaser 3 project template for Phaser Editor 2D v3",
+  "main": "webpack.config.js",
+  "scripts": {
+    "start:frontend": "webpack serve --mode=development --stats-error-details --node-env development",
+    "build:frontend": "webpack --mode=production --node-env production && phaser-asset-pack-hashing -r dist",
+    "start:backend": "nest start",
+    "start:backend:dev": "nest start --watch",
+    "build:backend": "tsc -p tsconfig.json",
+    "start": "webpack serve --mode=development --stats-error-details --node-env development"
+  },
+  "author": "Phaser Editor 2D <developers@phasereditor2d.com> (https://phasereditor2d.com/)",
+  "license": "MIT",
+  "dependencies": {
+    "@nestjs/common": "^10.4.8",
+    "@nestjs/core": "^10.4.8",
+    "@nestjs/platform-express": "^10.4.8",
+    "@nestjs/platform-socket.io": "^10.4.8",
+    "@nestjs/websockets": "^10.4.8",
+    "@phaserjs/editor-scripts-core": "^2.0.0",
+    "@phaserjs/editor-scripts-simple-animations": "2.0.0",
+    "express": "^4.21.1",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.1",
+    "@types/socket.io": "^3.0.1",
+    "clean-webpack-plugin": "^3.0.0",
+    "copy-webpack-plugin": "^8.1.0",
+    "html-webpack-plugin": "^5.6.3",
+    "image-minimizer-webpack-plugin": "^4.1.0",
+    "phaser": "^3.87.0",
+    "phaser-asset-pack-hashing": "^1.0.6",
+    "sharp": "^0.33.5",
+    "ts-loader": "^9.4.2",
+    "typescript": "^5.6.3",
+    "webpack": "^5.28.0",
+    "webpack-clean-plugin": "^0.2.3",
+    "webpack-cli": "^4.9.1",
+    "webpack-dev-server": "^4.4.0"
+  }
+}

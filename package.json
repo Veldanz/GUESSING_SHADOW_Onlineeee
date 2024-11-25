@@ -9,7 +9,10 @@
     "start:backend": "nest start",
     "start:backend:dev": "nest start --watch",
     "build:backend": "tsc -p tsconfig.json",
-    "start": "webpack serve --mode=development --stats-error-details --node-env development"
+    "start": "webpack serve --mode=development --stats-error-details --node-env development",
+    "build": "webpack --mode=production --node-env production && phaser-asset-pack-hashing -r dist",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "clean": "rm -rf dist"
   },
   "author": "Phaser Editor 2D <developers@phasereditor2d.com> (https://phasereditor2d.com/)",
   "license": "MIT",

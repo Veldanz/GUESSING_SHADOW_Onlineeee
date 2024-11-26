@@ -9,6 +9,7 @@ export default class Level extends Phaser.Scene {
     private socket!: Socket;
     private shadowContainer!: ShadowContainer;
     private gameOverText?: Phaser.GameObjects.Text;
+    private container_picture!: Phaser.GameObjects.Image;
     
     private readonly CONFIG = {
         mainPicture: {
@@ -51,11 +52,13 @@ export default class Level extends Phaser.Scene {
         // Add background
         this.add.image(this.scale.width / 2, this.scale.height / 2, "BG");
 
-        // Add main picture
-        this.add
-            .image(this.scale.width / 2, this.scale.height / 4, "Pic_elephant")
-            //.setScale(this.CONFIG.mainPicture.scale);
-
+        // Add picture container
+        this.container_picture = this.add.image(
+            this.scale.width / 2, 
+            this.scale.height / 4, 
+            "Pic_elephant"
+        );
+        this.container_picture.setScale(0.5);
         // Setup shadows
         this.setupShadows();
     }

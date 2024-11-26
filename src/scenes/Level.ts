@@ -54,7 +54,7 @@ export default class Level extends Phaser.Scene {
         // Add main picture
         this.add
             .image(this.scale.width / 2, this.scale.height / 4, "Pic_elephant")
-            .setScale(this.CONFIG.mainPicture.scale);
+            //.setScale(this.CONFIG.mainPicture.scale);
 
         // Setup shadows
         this.setupShadows();
@@ -78,8 +78,7 @@ export default class Level extends Phaser.Scene {
             shadow.setInteractive();
             shadow.on("pointerdown", () => {
                 this.socket.emit("clientGuessShadow", { guess: texture });
-            });
-            // Apply shadow scaling or specific dimensions
+                // Apply shadow scaling or specific dimensions
             if (this.CONFIG.shadows.scale) {
                 shadow.setScale(this.CONFIG.shadows.scale);
             } else {
@@ -88,6 +87,7 @@ export default class Level extends Phaser.Scene {
                     this.CONFIG.shadows.height
                 );
             }
+            });
         });
     }
 

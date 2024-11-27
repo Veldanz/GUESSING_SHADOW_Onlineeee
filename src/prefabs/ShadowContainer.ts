@@ -25,4 +25,8 @@ export default class ShadowContainer extends Phaser.GameObjects.Container {
     public enableAllShadows(): void {
         this.shadows.forEach(shadow => shadow.setInteractiveState(true));
     }
+
+    getShadowByTexture(texture: string): Shadow | undefined {
+        return this.shadows.find(shadow => shadow.texture.key === texture);
+    }
 }

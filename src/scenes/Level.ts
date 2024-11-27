@@ -1,4 +1,3 @@
-// Level.ts
 import Phaser from "phaser";
 import { io, Socket } from "socket.io-client";
 import ShadowContainer from "../prefabs/ShadowContainer";
@@ -10,17 +9,23 @@ export default class Level extends Phaser.Scene {
     private shadowContainer!: ShadowContainer;
     private gameOverText?: Phaser.GameObjects.Text;
     private container_picture!: Phaser.GameObjects.Image;
+    private timerText!: Phaser.GameObjects.Text;
+    private gameTimer!: Phaser.Time.TimerEvent;
+    private timeRemaining: number = 10;
+    private otherPlayerCursors: { [key: string]: Phaser.GameObjects.Image } = {};
+    private retryButton?: Phaser.GameObjects.Rectangle;
+    private retryText?: Phaser.GameObjects.Text;
     
     private readonly CONFIG = {
         mainPicture: {
             scale: 1,
-            width: 400,  // Optional: set specific width
-            height: 300  // Optional: set specific height
+            width: 400,
+            height: 300
         },
         shadows: {
             scale: 0.4,
-            width: 300,  // Optional: set specific width
-            height: 200  // Optional: set specific height
+            width: 300,
+            height: 200
         }
     };
 
@@ -28,42 +33,63 @@ export default class Level extends Phaser.Scene {
         super({ key: "Level" });
     }
 
-    preload(): void {
-        /*this.load.image("BG", "assets/bg.png");
-        this.load.image("Pic_elephant", "assets/elephant.png");
-        this.load.image("shadow_elephant_t", "assets/shadow_elephant_t.png");
-        this.load.image("shadow_elephant_f_1", "assets/shadow_elephant_f_1.png");
-        this.load.image("shadow_elephant_f_2", "assets/shadow_elephant_f_2.png");
-        this.load.image("shadow_elephant_f_3", "assets/shadow_elephant_f_3.png");*/
-    }
-
     create(): void {
-        // Setup scene
         this.setupScene();
-        
-        // Setup network
         this.setupNetwork();
-        
-        // Start the game
+        this.setupTimer();
+        this.setupMouseTracking();
+        this.setupShadowInteractions();
         this.socket.emit("clientStartGame");
     }
 
     private setupScene(): void {
-        // Add background
         this.add.image(this.scale.width / 2, this.scale.height / 2, "BG");
 
-        // Add picture container
         this.container_picture = this.add.image(
             this.scale.width / 2, 
             this.scale.height / 4, 
             "Pic_elephant"
         );
         this.container_picture.setScale(0.5);
-        // Setup shadows
-        this.setupShadows();
+
+        this.timerText = this.add.text(
+            this.scale.width - 100, 
+            50, 
+            `Time: ${this.timeRemaining}`, 
+            { fontSize: '24px', color: '#ffffff' }
+        );
     }
 
-    private setupShadows(): void {
+    private setupTimer(): void {
+        this.gameTimer = this.time.addEvent({
+            delay: 1000,
+            callback: this.updateTimer,
+            callbackScope: this,
+            loop: true
+        });
+    }
+
+    private updateTimer(): void {
+        this.timeRemaining--;
+        this.timerText.setText(`Time: ${this.timeRemaining}`);
+
+        if (this.timeRemaining <= 0) {
+            this.gameTimer.remove();
+            this.socket.emit("clientGameOver");
+        }
+    }
+
+    private setupMouseTracking(): void {
+        // Track and emit local mouse position
+        this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+            this.socket.emit('clientMouseMove', {
+                x: pointer.x,
+                y: pointer.y
+            });
+        });
+    }
+
+    private setupShadowInteractions(): void {
         this.shadowContainer = new ShadowContainer(this, 0, 0);
 
         const shadowData = [
@@ -78,18 +104,25 @@ export default class Level extends Phaser.Scene {
             shadow.setScale(this.CONFIG.shadows.scale);
             this.shadowContainer.addShadow(shadow);
 
+            // Synchronized hover effects
             shadow.setInteractive();
+            
+            shadow.on('pointerover', () => {
+                this.socket.emit('clientShadowHover', { 
+                    texture: texture, 
+                    isHovering: true 
+                });
+            });
+
+            shadow.on('pointerout', () => {
+                this.socket.emit('clientShadowHover', { 
+                    texture: texture, 
+                    isHovering: false 
+                });
+            });
+
             shadow.on("pointerdown", () => {
                 this.socket.emit("clientGuessShadow", { guess: texture });
-                // Apply shadow scaling or specific dimensions
-            if (this.CONFIG.shadows.scale) {
-                shadow.setScale(this.CONFIG.shadows.scale);
-            } else {
-                shadow.setDisplaySize(
-                    this.CONFIG.shadows.width,
-                    this.CONFIG.shadows.height
-                );
-            }
             });
         });
     }
@@ -97,20 +130,104 @@ export default class Level extends Phaser.Scene {
     private setupNetwork(): void {
         this.socket = io("http://localhost:3000");
 
-        // Handle server updates
+        // Game state updates
         this.socket.on("serverGameUpdate", (gameState: GameStateContent) => {
             this.handleGameStateUpdate(gameState);
         });
 
+        // Synchronized messages
         this.socket.on("serverMessage", (message: { text: string }) => {
-            const color = message.text === "Game Over!" ? "#ff0000" : "#00ff00";
-            this.showMessage(message.text, color);
+            this.showMessage(message.text, message.text === "Game Over!" ? "#ff0000" : "#00ff00");
         });
+
+        // Synchronized mouse tracking
+        this.socket.on('serverMouseMove', (data: { socketId: string, x: number, y: number }) => {
+            this.updateOtherPlayerCursor(data.socketId, data.x, data.y);
+        });
+
+        // Synchronized shadow hover
+        this.socket.on('serverShadowHover', (data: { texture: string, isHovering: boolean }) => {
+            this.handleShadowHover(data.texture, data.isHovering);
+        });
+
+        // Synchronized game reset
+        this.socket.on('serverGameReset', () => {
+            this.scene.restart();
+        });
+    }
+
+    private updateOtherPlayerCursor(socketId: string, x: number, y: number): void {
+        // Create or update cursor for each player
+        if (!this.otherPlayerCursors[socketId]) {
+            this.otherPlayerCursors[socketId] = this.add.image(x, y, 'cursor');
+        } else {
+            this.otherPlayerCursors[socketId].setPosition(x, y);
+        }
+    }
+
+    private handleShadowHover(texture: string, isHovering: boolean): void {
+        const shadow = this.shadowContainer.getShadowByTexture(texture);
+        if (shadow) {
+            if (isHovering) {
+                this.tweens.add({
+                    targets: shadow,
+                    scaleX: this.CONFIG.shadows.scale * 1.1,
+                    scaleY: this.CONFIG.shadows.scale * 1.1,
+                    duration: 200
+                });
+            } else {
+                this.tweens.add({
+                    targets: shadow,
+                    scaleX: this.CONFIG.shadows.scale,
+                    scaleY: this.CONFIG.shadows.scale,
+                    duration: 200
+                });
+            }
+        }
+    }
+
+    private showGameOverScreen(): void {
+        this.gameOverText = this.add.text(
+            this.scale.width / 2,
+            this.scale.height / 2,
+            "Game Over",
+            {
+                fontSize: "32px",
+                color: "#ff0000",
+                align: "center",
+                backgroundColor: "#ffffff",
+                padding: { x: 20, y: 20 }
+            }
+        ).setOrigin(0.5);
+
+        this.retryButton = this.add.rectangle(
+            this.scale.width / 2, 
+            this.scale.height / 2 + 100, 
+            200, 
+            50, 
+            0x00ff00
+        );
+        
+        this.retryText = this.add.text(
+            this.scale.width / 2, 
+            this.scale.height / 2 + 100, 
+            "Retry", 
+            { fontSize: '24px', color: '#000000' }
+        ).setOrigin(0.5);
+
+        this.retryButton.setInteractive();
+        this.retryText.setInteractive();
+
+        const retryHandler = () => {
+            this.socket.emit("clientResetGame");
+        };
+
+        this.retryButton.on('pointerdown', retryHandler);
+        this.retryText.on('pointerdown', retryHandler);
     }
 
     private handleGameStateUpdate(gameState: GameStateContent | null): void {
         if (!gameState) {
-            // Game ended or reset
             this.shadowContainer.enableAllShadows();
             return;
         }
@@ -135,27 +252,5 @@ export default class Level extends Phaser.Scene {
         ).setOrigin(0.5);
 
         this.time.delayedCall(2000, () => message.destroy());
-    }
-
-    private showGameOverScreen(): void {
-        this.gameOverText?.destroy();
-
-        this.gameOverText = this.add.text(
-            this.scale.width / 2,
-            this.scale.height / 2,
-            "Game Over\nClick to Retry",
-            {
-                fontSize: "32px",
-                color: "#ff0000",
-                align: "center",
-                backgroundColor: "#ffffff",
-                padding: { x: 20, y: 20 }
-            }
-        ).setOrigin(0.5);
-
-        this.gameOverText.setInteractive();
-        this.gameOverText.on("pointerdown", () => {
-            this.socket.emit("clientResetGame");
-        });
     }
 }

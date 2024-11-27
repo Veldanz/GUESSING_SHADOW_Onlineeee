@@ -103,8 +103,8 @@ export default class Level extends Phaser.Scene {
         });
 
         this.socket.on("serverMessage", (message: { text: string }) => {
-            this.showMessage(message.text, "#00ff00");
-            //this.showMessage(message.text, "#362727");
+            const color = message.text === "Game Over!" ? "#ff0000" : "#00ff00";
+            this.showMessage(message.text, color);
         });
     }
 

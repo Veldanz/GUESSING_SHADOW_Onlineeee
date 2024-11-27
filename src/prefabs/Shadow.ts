@@ -1,9 +1,13 @@
 import Phaser from "phaser";
 
 export default class Shadow extends Phaser.GameObjects.Image {
-  setInteractiveState(arg0: boolean): void {
-      throw new Error("Method not implemented.");
-  }
+  setInteractiveState(isInteractive: boolean) {
+    if (isInteractive) {
+        this.setInteractive();
+    } else {
+        this.disableInteractive();
+    }
+}
   private isCorrect: boolean;
 
   constructor(scene: Phaser.Scene, x: number, y: number, texture: string, isCorrect: boolean) {

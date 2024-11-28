@@ -36,7 +36,7 @@ export default class Level extends Phaser.Scene {
     create(): void {
         this.setupScene();
         this.setupNetwork();
-        this.setupTimer();
+        //this.setupTimer();
         this.setupMouseTracking();
         this.setupShadowInteractions();
         this.socket.emit("clientStartGame");
@@ -60,14 +60,14 @@ export default class Level extends Phaser.Scene {
         );
     }
 
-    private setupTimer(): void {
+    /*private setupTimer(): void {
         this.gameTimer = this.time.addEvent({
             delay: 1000,
             callback: this.updateTimer,
             callbackScope: this,
             loop: true
         });
-    }
+    }*/
 
     private updateTimer(): void {
         this.timeRemaining--;

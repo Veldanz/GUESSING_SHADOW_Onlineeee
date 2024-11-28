@@ -14,6 +14,11 @@ export class SessionGateway {
   private gameState: GameStateContent | null = null;
   private readonly logContext = "SessionGateway";
 
+  // New timer-related properties
+  private timerInterval: NodeJS.Timeout | null = null;
+  private timeRemaining: number = 10; // Default timer duration
+  private readonly TIMER_INTERVAL = 1000; // 1 second updates
+
   async handleConnection(socket: Socket): Promise<void> {
       const roomId = "defaultRoom";
       socket.join(roomId);
@@ -21,6 +26,11 @@ export class SessionGateway {
 
       if (this.gameState) {
           this.server.to(socket.id).emit("serverGameUpdate", this.gameState);
+
+           // Send current timer state to newly connected player
+           this.server.to(socket.id).emit("serverTimerUpdate", {
+            timeRemaining: this.timeRemaining
+        });
       }
   }
 
@@ -33,9 +43,48 @@ export class SessionGateway {
           wrongGuessCount: 0,
       };
       
+      // Start the synchronized timer
+      this.startTimer(roomId);
       this.broadcastGameState(roomId);
       Logger.log('Game started', this.logContext);
   }
+
+  private startTimer(roomId: string): void {
+    // Reset timer
+    this.timeRemaining = 10;
+
+    // Clear any existing interval
+    if (this.timerInterval) {
+        clearInterval(this.timerInterval);
+    }
+
+    // Start new timer interval
+    this.timerInterval = setInterval(() => {
+        this.timeRemaining--;
+
+        // Broadcast timer update to all players
+        this.server.to(roomId).emit("serverTimerUpdate", {
+            timeRemaining: this.timeRemaining
+        });
+
+        // Handle timer expiration
+        if (this.timeRemaining <= 0) {
+            this.handleTimerExpiration(roomId);
+        }
+    }, this.TIMER_INTERVAL);
+}
+
+private handleTimerExpiration(roomId: string): void {
+    // Stop the timer
+    if (this.timerInterval) {
+        clearInterval(this.timerInterval);
+        this.timerInterval = null;
+    }
+
+    // Broadcast game over message
+    this.server.to(roomId).emit('serverMessage', { text: "Game Over!" });
+    this.gameState = null;
+}
 
   @SubscribeMessage('clientMouseMove')
   handleMouseMove(socket: Socket, payload: { x: number, y: number }): void {
@@ -95,6 +144,18 @@ export class SessionGateway {
   @SubscribeMessage("clientResetGame")
   handleResetGame(socket: Socket): void {
       Logger.log(`Game reset by player: ${socket.id}`, this.logContext);
+
+      // Stop existing timer if running
+      if (this.timerInterval) {
+        clearInterval(this.timerInterval);
+        this.timerInterval = null;
+    }
+
+    this.gameState = {
+        shadowAnswer: "shadow_elephant_t",
+        guessedShadow: [],
+        wrongGuessCount: 0,
+    };
       this.gameState = {
           shadowAnswer: "shadow_elephant_t",
           guessedShadow: [],

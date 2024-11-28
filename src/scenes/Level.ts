@@ -169,7 +169,11 @@ export default class Level extends Phaser.Scene {
 
         // Synchronized game reset
         this.socket.on('serverGameReset', () => {
-            this.scene.restart();
+            console.log('Received game reset from server');
+            // Use scene reset OR manual reset, not both
+            this.scene.restart(); 
+            // OR
+            // this.resetGameManually(); // A method you'd create to reset game state
         });
     }
 
@@ -283,7 +287,7 @@ export default class Level extends Phaser.Scene {
         }
 
         if (gameState.wrongGuessCount >= 3) {
-            //this.showGameOverScreen();
+            this.showGameOverScreen();
             this.shadowContainer.disableAllShadows();
         }
     }

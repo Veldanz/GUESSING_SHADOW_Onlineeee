@@ -145,26 +145,31 @@ export class SessionGateway {
   }
 
   @SubscribeMessage("clientResetGame")
-  handleResetGame(socket: Socket): void {
-      Logger.log(`Game reset by player: ${socket.id}`, this.logContext);
+    handleResetGame(socket: Socket): void {
+        Logger.log(`Game reset by player: ${socket.id}`, this.logContext);
 
-      // Stop existing timer if running
-      if (this.timerInterval) {
-        clearInterval(this.timerInterval);
-        this.timerInterval = null;
-    }
+        // Stop existing timer if running
+        if (this.timerInterval) {
+            clearInterval(this.timerInterval);
+            this.timerInterval = null;
+        }
 
-    this.gameState = {
-        shadowAnswer: "shadow_elephant_t",
-        guessedShadow: [],
-        wrongGuessCount: 0,
+        // Completely reset game state
+        this.gameState = {
+            shadowAnswer: "shadow_elephant_t",
+            guessedShadow: [],
+            wrongGuessCount: 0,
+        };
+
+        const roomId = "defaultRoom";
+        
+        // Restart timer
+        this.startTimer(roomId);
+        
+        // Broadcast clean reset
+        this.server.to(roomId).emit('serverGameReset');
+        this.broadcastGameState(roomId);
     }
-      
-      // Broadcast game reset to all players
-      const roomId = "defaultRoom";
-      this.server.to(roomId).emit('serverGameReset');
-      this.broadcastGameState(roomId);
-  }
 
   private broadcastGameState(roomId: string): void {
       Logger.log("Broadcasting game state to all players", this.logContext);

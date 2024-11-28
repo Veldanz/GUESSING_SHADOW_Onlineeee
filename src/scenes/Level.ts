@@ -10,8 +10,10 @@ export default class Level extends Phaser.Scene {
     private gameOverText?: Phaser.GameObjects.Text;
     private container_picture!: Phaser.GameObjects.Image;
     private timerText!: Phaser.GameObjects.Text;
+    private timerBar!: Phaser.GameObjects.Rectangle;
     private gameTimer!: Phaser.Time.TimerEvent;
     private timeRemaining: number = 10;
+    private totalTime: number = 10;
     private otherPlayerCursors: { [key: string]: Phaser.GameObjects.Image } = {};
     private retryButton?: Phaser.GameObjects.Rectangle;
     private retryText?: Phaser.GameObjects.Text;
@@ -52,11 +54,21 @@ export default class Level extends Phaser.Scene {
         );
         this.container_picture.setScale(0.5);
 
+        // Timer text
         this.timerText = this.add.text(
-            this.scale.width - 100, 
+            this.scale.width - 150, 
             50, 
             `Time: ${this.timeRemaining}`, 
             { fontSize: '24px', color: '#ffffff' }
+        );
+
+        // Timer progress bar
+        this.timerBar = this.add.rectangle(
+            this.scale.width - 150, 
+            80, 
+            100, 
+            10, 
+            0x00ff00
         );
     }
 
@@ -130,6 +142,11 @@ export default class Level extends Phaser.Scene {
     private setupNetwork(): void {
         this.socket = io("http://localhost:3000");
 
+        // Timer update listener
+        this.socket.on("serverTimerUpdate", (data: { timeRemaining: number, totalTime: number }) => {
+            this.updateTimerUI(data.timeRemaining, data.totalTime);
+        });
+
         // Game state updates
         this.socket.on("serverGameUpdate", (gameState: GameStateContent) => {
             this.handleGameStateUpdate(gameState);
@@ -155,6 +172,33 @@ export default class Level extends Phaser.Scene {
             this.scene.restart();
         });
     }
+
+    private updateTimerUI(timeRemaining: number, totalTime: number): void {
+        this.timeRemaining = timeRemaining;
+        this.totalTime = totalTime;
+
+        // Update timer text
+        this.timerText.setText(`Time: ${this.timeRemaining}`);
+
+        // Update timer bar width
+        const barWidth = (timeRemaining / totalTime) * 100;
+        this.timerBar.width = barWidth;
+
+        // Change color and text when time is low
+        if (this.timeRemaining <= 3) {
+            this.timerText.setColor('#ff0000');
+            this.timerBar.setFillStyle(0xff0000);
+        } else {
+            this.timerText.setColor('#ffffff');
+            this.timerBar.setFillStyle(0x00ff00);
+        }
+
+        // Handle game over when time expires
+        if (this.timeRemaining <= 0) {
+            this.showGameOverScreen();
+        }
+    }
+
 
     private updateOtherPlayerCursor(socketId: string, x: number, y: number): void {
         // Create or update cursor for each player
@@ -187,6 +231,12 @@ export default class Level extends Phaser.Scene {
     }
 
     private showGameOverScreen(): void {
+
+        // Clear any existing game over elements
+        if (this.gameOverText) this.gameOverText.destroy();
+        if (this.retryButton) this.retryButton.destroy();
+        if (this.retryText) this.retryText.destroy();
+
         this.gameOverText = this.add.text(
             this.scale.width / 2,
             this.scale.height / 2,

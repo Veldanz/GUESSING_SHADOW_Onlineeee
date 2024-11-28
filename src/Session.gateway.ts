@@ -14,9 +14,10 @@ export class SessionGateway {
   private gameState: GameStateContent | null = null;
   private readonly logContext = "SessionGateway";
 
-  // New timer-related properties
+  // Timer-related properties
   private timerInterval: NodeJS.Timeout | null = null;
-  private timeRemaining: number = 10; // Default timer duration
+  private timeRemaining: number = 10;
+  private readonly TOTAL_TIME = 10; // Total game time
   private readonly TIMER_INTERVAL = 1000; // 1 second updates
 
   async handleConnection(socket: Socket): Promise<void> {
@@ -28,8 +29,9 @@ export class SessionGateway {
           this.server.to(socket.id).emit("serverGameUpdate", this.gameState);
 
            // Send current timer state to newly connected player
-           this.server.to(socket.id).emit("serverTimerUpdate", {
-            timeRemaining: this.timeRemaining
+          this.server.to(socket.id).emit("serverTimerUpdate", {
+            timeRemaining: this.timeRemaining,
+            totalTime: this.TOTAL_TIME
         });
       }
   }
@@ -51,7 +53,7 @@ export class SessionGateway {
 
   private startTimer(roomId: string): void {
     // Reset timer
-    this.timeRemaining = 10;
+    this.timeRemaining = this.TOTAL_TIME;
 
     // Clear any existing interval
     if (this.timerInterval) {
@@ -64,7 +66,8 @@ export class SessionGateway {
 
         // Broadcast timer update to all players
         this.server.to(roomId).emit("serverTimerUpdate", {
-            timeRemaining: this.timeRemaining
+            timeRemaining: this.timeRemaining,
+            totalTime: this.TOTAL_TIME
         });
 
         // Handle timer expiration
@@ -72,9 +75,9 @@ export class SessionGateway {
             this.handleTimerExpiration(roomId);
         }
     }, this.TIMER_INTERVAL);
-}
+  }
 
-private handleTimerExpiration(roomId: string): void {
+  private handleTimerExpiration(roomId: string): void {
     // Stop the timer
     if (this.timerInterval) {
         clearInterval(this.timerInterval);
@@ -82,9 +85,9 @@ private handleTimerExpiration(roomId: string): void {
     }
 
     // Broadcast game over message
-    this.server.to(roomId).emit('serverMessage', { text: "Game Over!" });
+    this.server.to(roomId).emit('serverMessage', { text: "Time's up! Game Over!" });
     this.gameState = null;
-}
+  }
 
   @SubscribeMessage('clientMouseMove')
   handleMouseMove(socket: Socket, payload: { x: number, y: number }): void {

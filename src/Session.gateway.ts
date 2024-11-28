@@ -158,12 +158,7 @@ export class SessionGateway {
         shadowAnswer: "shadow_elephant_t",
         guessedShadow: [],
         wrongGuessCount: 0,
-    };
-      this.gameState = {
-          shadowAnswer: "shadow_elephant_t",
-          guessedShadow: [],
-          wrongGuessCount: 0,
-      };
+    }
       
       // Broadcast game reset to all players
       const roomId = "defaultRoom";

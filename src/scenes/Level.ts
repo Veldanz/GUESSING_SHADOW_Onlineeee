@@ -283,7 +283,7 @@ export default class Level extends Phaser.Scene {
         }
 
         if (gameState.wrongGuessCount >= 3) {
-            this.showGameOverScreen();
+            //this.showGameOverScreen();
             this.shadowContainer.disableAllShadows();
         }
     }

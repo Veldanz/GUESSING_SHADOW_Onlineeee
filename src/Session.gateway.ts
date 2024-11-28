@@ -85,7 +85,7 @@ export class SessionGateway {
     }
 
     // Broadcast game over message
-    this.server.to(roomId).emit('serverMessage', { text: "Time's up! Game Over!" });
+    //this.server.to(roomId).emit('serverMessage', { text: "Time's up! Game Over!" });
     this.gameState = null;
   }
 

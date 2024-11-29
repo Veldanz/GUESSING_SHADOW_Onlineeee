@@ -11,12 +11,13 @@ export default class Level extends Phaser.Scene {
     private container_picture!: Phaser.GameObjects.Image;
     private timerText!: Phaser.GameObjects.Text;
     private timerBar!: Phaser.GameObjects.Rectangle;
-    private gameTimer!: Phaser.Time.TimerEvent;
     private timeRemaining: number = 10;
     private totalTime: number = 10;
     private otherPlayerCursors: { [key: string]: Phaser.GameObjects.Image } = {};
     private retryButton?: Phaser.GameObjects.Rectangle;
     private retryText?: Phaser.GameObjects.Text;
+    private isGameOver: boolean = false;
+    private localCursor?: Phaser.GameObjects.Image;
     
     private readonly CONFIG = {
         mainPicture: {
@@ -36,15 +37,18 @@ export default class Level extends Phaser.Scene {
     }
 
     create(): void {
+        this.isGameOver = false;
         this.setupScene();
         this.setupNetwork();
-        //this.setupTimer();
         this.setupMouseTracking();
         this.setupShadowInteractions();
         this.socket.emit("clientStartGame");
     }
 
     private setupScene(): void {
+        // Clear any existing game elements
+        this.children.removeAll();
+
         this.add.image(this.scale.width / 2, this.scale.height / 2, "BG");
 
         this.container_picture = this.add.image(
@@ -70,38 +74,33 @@ export default class Level extends Phaser.Scene {
             10, 
             0x00ff00
         );
-    }
 
-    /*private setupTimer(): void {
-        this.gameTimer = this.time.addEvent({
-            delay: 1000,
-            callback: this.updateTimer,
-            callbackScope: this,
-            loop: true
-        });
-    }*/
-
-    private updateTimer(): void {
-        this.timeRemaining--;
-        this.timerText.setText(`Time: ${this.timeRemaining}`);
-
-        if (this.timeRemaining <= 0) {
-            this.gameTimer.remove();
-            this.socket.emit("clientGameOver");
+        // Remove any existing local cursor
+        if (this.localCursor) {
+            this.localCursor.destroy();
         }
     }
 
     private setupMouseTracking(): void {
+        // Remove previous listeners to prevent duplicates
+        this.input.off('pointermove');
+
         // Track and emit local mouse position
         this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
-            this.socket.emit('clientMouseMove', {
-                x: pointer.x,
-                y: pointer.y
-            });
+            if (!this.isGameOver) {
+                this.socket.emit('clientMouseMove', {
+                    x: pointer.x,
+                    y: pointer.y
+                });
+            }
         });
     }
 
     private setupShadowInteractions(): void {
+        // Reset shadow container
+        if (this.shadowContainer) {
+            this.shadowContainer.destroy();
+        }
         this.shadowContainer = new ShadowContainer(this, 0, 0);
 
         const shadowData = [
@@ -119,27 +118,45 @@ export default class Level extends Phaser.Scene {
             // Synchronized hover effects
             shadow.setInteractive();
             
+            // Only allow interactions if not game over
             shadow.on('pointerover', () => {
-                this.socket.emit('clientShadowHover', { 
-                    texture: texture, 
-                    isHovering: true 
-                });
+                if (!this.isGameOver) {
+                    this.socket.emit('clientShadowHover', { 
+                        texture: texture, 
+                        isHovering: true 
+                    });
+
+                    // Local hover effect
+                    this.handleShadowHover(texture, true);
+                }
             });
 
             shadow.on('pointerout', () => {
-                this.socket.emit('clientShadowHover', { 
-                    texture: texture, 
-                    isHovering: false 
-                });
+                if (!this.isGameOver) {
+                    this.socket.emit('clientShadowHover', { 
+                        texture: texture, 
+                        isHovering: false 
+                    });
+
+                    // Local hover effect
+                    this.handleShadowHover(texture, false);
+                }
             });
 
             shadow.on("pointerdown", () => {
-                this.socket.emit("clientGuessShadow", { guess: texture });
+                if (!this.isGameOver) {
+                    this.socket.emit("clientGuessShadow", { guess: texture });
+                }
             });
         });
     }
 
     private setupNetwork(): void {
+        // Disconnect previous socket if exists
+        if (this.socket) {
+            this.socket.disconnect();
+        }
+
         this.socket = io("http://localhost:3000");
 
         // Timer update listener
@@ -155,11 +172,20 @@ export default class Level extends Phaser.Scene {
         // Synchronized messages
         this.socket.on("serverMessage", (message: { text: string }) => {
             this.showMessage(message.text, message.text === "Game Over!" ? "#ff0000" : "#00ff00");
+            
+            // Check if game is over
+            if (message.text === "Game Over!") {
+                this.isGameOver = true;
+                this.shadowContainer.disableAllShadows();
+            }
         });
 
         // Synchronized mouse tracking
         this.socket.on('serverMouseMove', (data: { socketId: string, x: number, y: number }) => {
-            this.updateOtherPlayerCursor(data.socketId, data.x, data.y);
+            // Only update other player's cursor if not the local player
+            if (data.socketId !== this.socket.id) {
+                this.updateOtherPlayerCursor(data.socketId, data.x, data.y);
+            }
         });
 
         // Synchronized shadow hover
@@ -169,12 +195,26 @@ export default class Level extends Phaser.Scene {
 
         // Synchronized game reset
         this.socket.on('serverGameReset', () => {
-            console.log('Received game reset from server');
-            // Use scene reset OR manual reset, not both
-            this.scene.restart(); 
-            // OR
-            // this.resetGameManually(); // A method you'd create to reset game state
+            this.resetGameState();
         });
+    }
+
+    private resetGameState(): void {
+        this.isGameOver = false;
+        
+        // Clear game over elements
+        if (this.gameOverText) this.gameOverText.destroy();
+        if (this.retryButton) this.retryButton.destroy();
+        if (this.retryText) this.retryText.destroy();
+
+        // Reset scene
+        this.setupScene();
+        this.setupShadowInteractions();
+        this.setupMouseTracking();
+
+        // Recreate other player cursors
+        Object.values(this.otherPlayerCursors).forEach(cursor => cursor.destroy());
+        this.otherPlayerCursors = {};
     }
 
     private updateTimerUI(timeRemaining: number, totalTime: number): void {
@@ -199,13 +239,13 @@ export default class Level extends Phaser.Scene {
 
         // Handle game over when time expires
         if (this.timeRemaining <= 0) {
+            this.isGameOver = true;
             this.showGameOverScreen();
         }
     }
 
-
     private updateOtherPlayerCursor(socketId: string, x: number, y: number): void {
-        // Create or update cursor for each player
+        // Create or update cursor for each player (excluding local player)
         if (!this.otherPlayerCursors[socketId]) {
             this.otherPlayerCursors[socketId] = this.add.image(x, y, 'cursor');
         } else {
@@ -214,6 +254,8 @@ export default class Level extends Phaser.Scene {
     }
 
     private handleShadowHover(texture: string, isHovering: boolean): void {
+        if (this.isGameOver) return;
+
         const shadow = this.shadowContainer.getShadowByTexture(texture);
         if (shadow) {
             if (isHovering) {
@@ -235,7 +277,6 @@ export default class Level extends Phaser.Scene {
     }
 
     private showGameOverScreen(): void {
-
         // Clear any existing game over elements
         if (this.gameOverText) this.gameOverText.destroy();
         if (this.retryButton) this.retryButton.destroy();
@@ -278,6 +319,9 @@ export default class Level extends Phaser.Scene {
 
         this.retryButton.on('pointerdown', retryHandler);
         this.retryText.on('pointerdown', retryHandler);
+
+        // Disable shadows
+        this.shadowContainer.disableAllShadows();
     }
 
     private handleGameStateUpdate(gameState: GameStateContent | null): void {
@@ -287,6 +331,7 @@ export default class Level extends Phaser.Scene {
         }
 
         if (gameState.wrongGuessCount >= 3) {
+            this.isGameOver = true;
             this.showGameOverScreen();
             this.shadowContainer.disableAllShadows();
         }

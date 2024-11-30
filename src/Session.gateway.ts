@@ -78,16 +78,12 @@ export class SessionGateway {
   }
 
   private handleTimerExpiration(roomId: string): void {
-    // Stop the timer
-    if (this.timerInterval) {
-        clearInterval(this.timerInterval);
-        this.timerInterval = null;
+        this.stopTimer(roomId);
+        this.gameState = null;
+        this.server.to(roomId).emit('serverShowGameOverScreen', { 
+            text: "Time's up! Game Over!" 
+        });
     }
-
-    // Broadcast game over message
-    //this.server.to(roomId).emit('serverMessage', { text: "Time's up! Game Over!" });
-    this.gameState = null;
-  }
 
   @SubscribeMessage('clientMouseMove')
   handleMouseMove(socket: Socket, payload: { x: number, y: number }): void {
@@ -115,34 +111,39 @@ export class SessionGateway {
   }
 
   @SubscribeMessage('clientGuessShadow')
-  handleGuessShadow(socket: Socket, payload: { guess: string }): void {
-      if (!this.gameState) {
-          Logger.warn("No active game state", this.logContext);
-          return;
-      }
+    handleGuessShadow(socket: Socket, payload: { guess: string }): void {
+        if (!this.gameState) {
+            Logger.warn("No active game state", this.logContext);
+            return;
+        }
 
-      const { guess } = payload;
-      const roomId = "defaultRoom";
+        const { guess } = payload;
+        const roomId = "defaultRoom";
 
-      if (guess === this.gameState.shadowAnswer) {
-          this.server.to(roomId).emit('serverMessage', { text: "Correct! Well done!" });
-          this.gameState = null;
-      } else {
-          this.gameState.wrongGuessCount++;
-          this.gameState.guessedShadow.push(guess);
+        if (guess === this.gameState.shadowAnswer) {
+            this.server.to(roomId).emit('serverMessage', { text: "Correct! Well done!" });
+            //this.stopTimer(roomId);
+            this.gameState = null;
+        } else {
+            this.gameState.wrongGuessCount++;
+            this.gameState.guessedShadow.push(guess);
 
-          if (this.gameState.wrongGuessCount >= 3) {
-              this.server.to(roomId).emit('serverMessage', { text: "Game Over!" });
-              this.gameState = null;
-          } else {
-              this.server.to(roomId).emit('serverMessage', { 
-                  text: `Incorrect! ${3 - this.gameState.wrongGuessCount} tries remaining!` 
-              });
-          }
-      }
+            if (this.gameState.wrongGuessCount >= 3) {
+                // Explicitly tell clients to show game over screen
+                this.server.to(roomId).emit('serverShowGameOverScreen', { 
+                    text: "Game Over!" 
+                });
+                this.stopTimer(roomId);
+                this.gameState = null;
+            } else {
+                this.server.to(roomId).emit('serverMessage', { 
+                    text: `Incorrect! ${3 - this.gameState.wrongGuessCount} tries remaining!` 
+                });
+            }
+        }
 
-      this.broadcastGameState(roomId);
-  }
+        this.broadcastGameState(roomId);
+    }
 
   @SubscribeMessage("clientResetGame")
     handleResetGame(socket: Socket): void {
@@ -175,4 +176,18 @@ export class SessionGateway {
       Logger.log("Broadcasting game state to all players", this.logContext);
       this.server.to(roomId).emit("serverGameUpdate", this.gameState);
   }
+
+  private stopTimer(roomId: string): void {
+        // Stop the timer
+        if (this.timerInterval) {
+            clearInterval(this.timerInterval);
+            this.timerInterval = null;
+        }
+
+        // Broadcast final timer state (0)
+        this.server.to(roomId).emit("serverTimerUpdate", {
+            timeRemaining: 0,
+            totalTime: this.TOTAL_TIME
+        });
+    }
 }

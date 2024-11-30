@@ -11,7 +11,7 @@ export default class Level extends Phaser.Scene {
     private container_picture!: Phaser.GameObjects.Image;
     private timerText!: Phaser.GameObjects.Text;
     //private timerBar!: Phaser.GameObjects.Rectangle;
-    private timeRemaining: number = 10;
+    private timeRemaining: number = 0;
     private totalTime: number = 10;
     private otherPlayerCursors: { [key: string]: Phaser.GameObjects.Image } = {};
     private retryButton?: Phaser.GameObjects.Rectangle;
@@ -198,6 +198,14 @@ export default class Level extends Phaser.Scene {
         // Synchronized game reset
         this.socket.on('serverGameReset', () => {
             this.resetGameState();
+        });
+
+        // New listener for explicitly showing game over screen
+        this.socket.on('serverShowGameOverScreen', (message: { text: string }) => {
+            this.showMessage(message.text, "#ff0000");
+            this.isGameOver = true;
+            this.showGameOverScreen();
+            this.shadowContainer.disableAllShadows();
         });
     }
 

@@ -10,7 +10,7 @@ export default class Level extends Phaser.Scene {
     private gameOverText?: Phaser.GameObjects.Text;
     private container_picture!: Phaser.GameObjects.Image;
     private timerText!: Phaser.GameObjects.Text;
-    private timerBar!: Phaser.GameObjects.Rectangle;
+    //private timerBar!: Phaser.GameObjects.Rectangle;
     private timeRemaining: number = 10;
     private totalTime: number = 10;
     private otherPlayerCursors: { [key: string]: Phaser.GameObjects.Image } = {};
@@ -50,6 +50,8 @@ export default class Level extends Phaser.Scene {
         this.children.removeAll();
 
         this.add.image(this.scale.width / 2, this.scale.height / 2, "BG");
+        this.add.image(this.scale.width / 1.10, this.scale.height / 6, "Timer_Pic").setScale(0.8);
+        
 
         this.container_picture = this.add.image(
             this.scale.width / 2, 
@@ -60,14 +62,14 @@ export default class Level extends Phaser.Scene {
 
         // Timer text
         this.timerText = this.add.text(
-            this.scale.width - 150, 
-            50, 
-            `Time: ${this.timeRemaining}`, 
-            { fontSize: '24px', color: '#ffffff' }
+            this.scale.width - 140, 
+            65, 
+            `${this.timeRemaining}`, 
+            { fontSize: '72px', color: '#ffffff' }
         );
 
         // Timer progress bar
-        this.timerBar = this.add.rectangle(
+        /*this.timerBar = this.add.rectangle(
             this.scale.width - 150, 
             80, 
             100, 
@@ -78,7 +80,7 @@ export default class Level extends Phaser.Scene {
         // Remove any existing local cursor
         if (this.localCursor) {
             this.localCursor.destroy();
-        }
+        }*/
     }
 
     private setupMouseTracking(): void {
@@ -222,19 +224,19 @@ export default class Level extends Phaser.Scene {
         this.totalTime = totalTime;
 
         // Update timer text
-        this.timerText.setText(`Time: ${this.timeRemaining}`);
+        this.timerText.setText(`${this.timeRemaining}`);
 
         // Update timer bar width
-        const barWidth = (timeRemaining / totalTime) * 100;
-        this.timerBar.width = barWidth;
+        /*const barWidth = (timeRemaining / totalTime) * 100;
+        this.timerBar.width = barWidth;*/
 
         // Change color and text when time is low
         if (this.timeRemaining <= 3) {
             this.timerText.setColor('#ff0000');
-            this.timerBar.setFillStyle(0xff0000);
+            //this.timerBar.setFillStyle(0xff0000);
         } else {
             this.timerText.setColor('#ffffff');
-            this.timerBar.setFillStyle(0x00ff00);
+            //this.timerBar.setFillStyle(0x00ff00);
         }
 
         // Handle game over when time expires

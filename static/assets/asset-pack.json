@@ -30,6 +30,11 @@
                 "url": "assets/EL_F3-min.png",
                 "type": "image",
                 "key": "shadow_elephant_f_3"
+            },
+            {
+                "url": "assets/Timer.png",
+                "type": "image",
+                "key": "Timer_Pic"
             }
         ]
     },

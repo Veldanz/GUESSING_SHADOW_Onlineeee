@@ -265,23 +265,13 @@ export default class Level extends Phaser.Scene {
 
     private handleShadowHover(texture: string, isHovering: boolean): void {
         if (this.isGameOver) return;
-
+    
         const shadow = this.shadowContainer.getShadowByTexture(texture);
         if (shadow) {
             if (isHovering) {
-                this.tweens.add({
-                    targets: shadow,
-                    scaleX: this.CONFIG.shadows.scale * 1.1,
-                    scaleY: this.CONFIG.shadows.scale * 1.1,
-                    duration: 200
-                });
+                shadow.setScale(this.CONFIG.shadows.scale * 1.1);
             } else {
-                this.tweens.add({
-                    targets: shadow,
-                    scaleX: this.CONFIG.shadows.scale,
-                    scaleY: this.CONFIG.shadows.scale,
-                    duration: 200
-                });
+                shadow.setScale(this.CONFIG.shadows.scale);
             }
         }
     }

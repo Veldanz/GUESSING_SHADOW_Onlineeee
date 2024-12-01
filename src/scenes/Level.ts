@@ -26,7 +26,7 @@ export default class Level extends Phaser.Scene {
             height: 300
         },
         shadows: {
-            scale: 0.4,
+            scale: 0.45,
             width: 300,
             height: 200
         }
@@ -50,22 +50,24 @@ export default class Level extends Phaser.Scene {
         this.children.removeAll();
 
         this.add.image(this.scale.width / 2, this.scale.height / 2, "BG");
-        this.add.image(this.scale.width / 1.10, this.scale.height / 6, "Timer_Pic").setScale(0.8);
+        this.add.image(this.scale.width / 2, this.scale.height / 2, "GRASS");
+        this.add.image(this.scale.width / 2, this.scale.height / 2, "Shadow_Panel");
+        this.add.image(this.scale.width / 2, this.scale.height / 2, "Timer_Pic").setPosition(1700, 150);
         
 
         this.container_picture = this.add.image(
             this.scale.width / 2, 
-            this.scale.height / 4, 
+            this.scale.height / 3.5, 
             "Pic_elephant"
         );
-        this.container_picture.setScale(0.5);
+        this.container_picture.setScale(0.6);
 
         // Timer text
         this.timerText = this.add.text(
-            this.scale.width - 140, 
-            65, 
+            this.scale.width - 265, 
+            65,
             `${this.timeRemaining}`, 
-            { fontSize: '72px', color: '#ffffff' }
+            { fontSize: '150px', color: '#ffffff' }
         );
 
         // Timer progress bar
@@ -106,10 +108,10 @@ export default class Level extends Phaser.Scene {
         this.shadowContainer = new ShadowContainer(this, 0, 0);
 
         const shadowData = [
-            { x: 150, y: 570, texture: "shadow_elephant_f_1", isCorrect: false },
-            { x: 450, y: 570, texture: "shadow_elephant_f_2", isCorrect: false },
-            { x: 750, y: 570, texture: "shadow_elephant_t", isCorrect: true },
-            { x: 1050, y: 570, texture: "shadow_elephant_f_3", isCorrect: false },
+            { x: 200, y: 800, texture: "shadow_elephant_f_1", isCorrect: false },
+            { x: 700, y: 800, texture: "shadow_elephant_f_2", isCorrect: false },
+            { x: 1200, y: 800, texture: "shadow_elephant_t", isCorrect: true },
+            { x: 1700, y: 800, texture: "shadow_elephant_f_3", isCorrect: false },
         ];
 
         shadowData.forEach(({ x, y, texture, isCorrect }) => {
@@ -257,7 +259,7 @@ export default class Level extends Phaser.Scene {
     private updateOtherPlayerCursor(socketId: string, x: number, y: number): void {
         // Create or update cursor for each player (excluding local player)
         if (!this.otherPlayerCursors[socketId]) {
-            this.otherPlayerCursors[socketId] = this.add.image(x, y, 'cursor');
+            this.otherPlayerCursors[socketId] = this.add.image(x, y, 'otherMouse');
         } else {
             this.otherPlayerCursors[socketId].setPosition(x, y);
         }

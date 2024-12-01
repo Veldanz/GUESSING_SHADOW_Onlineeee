@@ -2,32 +2,42 @@
     "section1": {
         "files": [
             {
-                "url": "assets/BG-min.png",
+                "url": "assets/FR_BG.png",
                 "type": "image",
                 "key": "BG"
             },
             {
-                "url": "assets/EL_PIC-min.png",
+                "url": "assets/GRASS.png",
+                "type": "image",
+                "key": "GRASS"
+            },
+            {
+                "url": "assets/Shadow_Panel.png",
+                "type": "image",
+                "key": "Shadow_Panel"
+            },
+            {
+                "url": "assets/El_Pic.png",
                 "type": "image",
                 "key": "Pic_elephant"
             },
             {
-                "url": "assets/EL_T-min.png",
+                "url": "assets/El_T1.png",
                 "type": "image",
                 "key": "shadow_elephant_t"
             },
             {
-                "url": "assets/EL_F1-min.png",
+                "url": "assets/El_F1.png",
                 "type": "image",
                 "key": "shadow_elephant_f_1"
             },
             {
-                "url": "assets/EL_F2-min.png",
+                "url": "assets/El_F2.png",
                 "type": "image",
                 "key": "shadow_elephant_f_2"
             },
             {
-                "url": "assets/EL_F3-min.png",
+                "url": "assets/El_F3.png",
                 "type": "image",
                 "key": "shadow_elephant_f_3"
             },
@@ -35,6 +45,11 @@
                 "url": "assets/Timer.png",
                 "type": "image",
                 "key": "Timer_Pic"
+            },
+            {
+                "url": "assets/MOUSE.png",
+                "type": "image",
+                "key": "otherMouse"
             }
         ]
     },

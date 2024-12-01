@@ -122,6 +122,7 @@ export class SessionGateway {
 
         if (guess === this.gameState.shadowAnswer) {
             this.server.to(roomId).emit('serverMessage', { text: "Correct! Well done!" });
+            nextLevel: true  // Add a flag to indicate level progression
             //this.stopTimer(roomId);
             this.gameState = null;
         } else {

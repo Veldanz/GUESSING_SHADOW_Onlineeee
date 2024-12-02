@@ -44,7 +44,6 @@ export default class Level extends Phaser.Scene {
         this.setupShadowInteractions();
         this.socket.emit("clientStartGame");
     }
-    
 
     private setupScene(): void {
         // Clear any existing game elements

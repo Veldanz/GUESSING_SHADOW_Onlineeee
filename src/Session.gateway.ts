@@ -191,4 +191,13 @@ export class SessionGateway {
             totalTime: this.TOTAL_TIME
         });
     }
+
+    @SubscribeMessage('clientGameUpdate')
+    handleGameUpdate(socket: Socket, payload: any) {
+        const room = this.sessionService.getRoomFromSocket(socket);
+        room.gameState = payload;
+        console.info(`clientGameUpdate: ${JSON.stringify(room.gameState)}`);
+
+        this.server.to(room.sid).emit('serverGameUpdate', room.gameState);
+    }
 }

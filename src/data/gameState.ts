@@ -10,9 +10,21 @@ export interface GamePermission {
   }
 
 export interface GameStateContent {
-    shadowAnswer: string,
-    guessedShadow: string[],
-    wrongGuessCount: number,
+  mainPicture: string;           // ชื่อหรือคีย์ของภาพตัวอย่าง
+  shadows: ShadowData[];         // ข้อมูลเงาที่แสดงในเกม
+  correctShadow: string;         // คีย์ของเงาที่ถูกต้อง
+  guessedShadows: string[];      // คีย์ของเงาที่ผู้เล่นเคยเลือก
+  wrongGuessCount: number;       // จำนวนครั้งที่เลือกผิด
+  maxWrongGuesses: number;       // จำนวนครั้งที่ผิดได้สูงสุดก่อน Game Over
+  timeRemaining: number;         // เวลาที่เหลืออยู่
+  isGameOver: boolean;           // สถานะจบเกม
+  currentPlayer: string;         // ระบุผู้เล่นที่กำลังเล่น
+}
+
+interface ShadowData {
+  texture: string;               // ชื่อหรือคีย์ของเงา
+  position: { x: number; y: number }; // ตำแหน่งของเงาในเกม
+  isHovered: boolean;            // สถานะ hover ของเงา
 }
 
 export interface UserInformation {

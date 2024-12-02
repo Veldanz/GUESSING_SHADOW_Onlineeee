@@ -81,7 +81,7 @@ export class SessionGateway {
         this.stopTimer(roomId);
         this.gameState = null;
         this.server.to(roomId).emit('serverShowGameOverScreen', { 
-            text: "Time's up! Game Over!" 
+            //text: "Time's up! Game Over!" 
         });
     }
 

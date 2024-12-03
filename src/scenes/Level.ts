@@ -2,40 +2,34 @@ import Phaser from "phaser";
 import { io, Socket } from "socket.io-client";
 import ShadowContainer from "../prefabs/ShadowContainer";
 import Shadow from "../prefabs/Shadow";
-import { GameStateContent, GameState } from "../data/gameState";
-import { DefaultEventsMap } from "socket.io";
-
+import { GameStateContent } from "~/data/gameState";
 
 export default class Level extends Phaser.Scene {
-    private socket!: Socket<DefaultEventsMap, DefaultEventsMap>;
+    private socket!: Socket;
     private shadowContainer!: ShadowContainer;
     private gameOverText?: Phaser.GameObjects.Text;
     private container_picture!: Phaser.GameObjects.Image;
     private timerText!: Phaser.GameObjects.Text;
+    //private timerBar!: Phaser.GameObjects.Rectangle;
+    private timeRemaining: number = 0;
+    private totalTime: number = 10;
     private otherPlayerCursors: { [key: string]: Phaser.GameObjects.Image } = {};
     private retryButton?: Phaser.GameObjects.Rectangle;
     private retryText?: Phaser.GameObjects.Text;
+    private isGameOver: boolean = false;
     private localCursor?: Phaser.GameObjects.Image;
     
-    private gameState: GameStateContent = {
-        currentState: GameState.INITIALIZING,
-        mainPicture: "Pic_elephant",
-        shadows: [],
-        correctShadow: "shadow_elephant_t",
-        guessedShadows: [],
-        wrongGuessCount: 0,
-        maxWrongGuesses: 3,
-        timeRemaining: 10,
-        totalTime: 10,
-        currentPlayer: '',
-        players: [],
-        level: 1,
-        score: 0
-    };
-
     private readonly CONFIG = {
-        mainPicture: { scale: 1, width: 400, height: 300 },
-        shadows: { scale: 0.45, width: 300, height: 200 }
+        mainPicture: {
+            scale: 1,
+            width: 400,
+            height: 300
+        },
+        shadows: {
+            scale: 0.45,
+            width: 300,
+            height: 200
+        }
     };
 
     constructor() {
@@ -43,113 +37,16 @@ export default class Level extends Phaser.Scene {
     }
 
     create(): void {
+        this.isGameOver = false;
         this.setupScene();
         this.setupNetwork();
         this.setupMouseTracking();
         this.setupShadowInteractions();
-        this.initializeGameState();
-        this.initializeSocket();
-    }
-
-    private initializeSocket(): void {
-        // Disconnect previous socket if exists
-        if (this.socket) {
-            this.socket.disconnect();
-        }
-
-        // Explicitly create the socket
-        this.socket = io("http://localhost:3000", {
-            // Optional: add connection options if needed
-            forceNew: true,
-            reconnection: true
-        });
-    }
-
-
-    private initializeGameState(): void {
-        // Ensure socket is defined before using
-        if (!this.socket) {
-            console.error("Socket not initialized");
-            return;
-        }
-
-        this.updateGameState({
-            currentState: GameState.NORMAL,
-            currentPlayer: this.socket.id || '', // Provide a fallback
-            players: this.socket.id ? [this.socket.id] : []
-        });
-
         this.socket.emit("clientStartGame");
     }
 
-    private updateGameState(newState: Partial<GameStateContent>): void {
-        // Ensure socket is defined before using
-        if (!this.socket) {
-            console.error("Cannot update game state: Socket not initialized");
-            return;
-        }
-
-        this.gameState = {
-            ...this.gameState,
-            ...newState
-        };
-
-        // Synchronize game state with server
-        this.socket.emit('clientGameUpdate', {
-            gameState: this.gameState,
-            playerSocketId: this.socket.id || '' // Provide a fallback
-        });
-
-        this.handleStateTransition();
-    }
-
-    private handleStateTransition(): void {
-        switch(this.gameState.currentState) {
-            case GameState.CORRECT_GUESS:
-                this.handleCorrectGuess();
-                break;
-            case GameState.INCORRECT_GUESS:
-                this.handleIncorrectGuess();
-                break;
-            case GameState.GAME_OVER:
-                this.showGameOverScreen();
-                break;
-            case GameState.TIME_UP:
-                this.handleTimeUp();
-                break;
-        }
-    }
-
-    private handleCorrectGuess(): void {
-        this.showMessage("Correct! Well done!", "#00ff00");
-        this.updateGameState({
-            score: this.gameState.score + 100,
-            level: this.gameState.level + 1
-        });
-        this.shadowContainer.disableAllShadows();
-    }
-
-    private handleIncorrectGuess(): void {
-        const remainingTries = this.gameState.maxWrongGuesses - this.gameState.wrongGuessCount;
-        const message = remainingTries > 0 
-            ? `Incorrect! ${remainingTries} tries remaining!`
-            : "Game Over! Too many wrong guesses.";
-        
-        this.showMessage(message, "#ff0000");
-
-        if (this.gameState.wrongGuessCount >= this.gameState.maxWrongGuesses) {
-            this.updateGameState({ 
-                currentState: GameState.GAME_OVER 
-            });
-        }
-    }
-
-    private handleTimeUp(): void {
-        this.showMessage("Time's up!", "#ff0000");
-        this.showGameOverScreen();
-    }
-
     private setupScene(): void {
+        // Clear any existing game elements
         this.children.removeAll();
 
         this.add.image(this.scale.width / 2, this.scale.height / 2, "BG");
@@ -157,73 +54,44 @@ export default class Level extends Phaser.Scene {
         this.add.image(this.scale.width / 2, this.scale.height / 2, "Shadow_Panel");
         this.add.image(this.scale.width / 2, this.scale.height / 2, "Timer_Pic").setPosition(1700, 150);
         
+
         this.container_picture = this.add.image(
             this.scale.width / 2, 
             this.scale.height / 3.5, 
-            this.gameState.mainPicture
-        ).setScale(0.6);
+            "Pic_elephant"
+        );
+        this.container_picture.setScale(0.6);
 
         // Timer text
         this.timerText = this.add.text(
             this.scale.width - 265, 
             65,
-            `${this.gameState.timeRemaining}`, 
+            `${this.timeRemaining}`, 
             { fontSize: '150px', color: '#ffffff' }
         );
-    }
 
-    private setupNetwork(): void {
-        // Ensure socket is properly initialized
-        if (!this.socket) {
-            console.error("Socket not initialized in setupNetwork");
-            return;
-        }
+        // Timer progress bar
+        /*this.timerBar = this.add.rectangle(
+            this.scale.width - 150, 
+            80, 
+            100, 
+            10, 
+            0x00ff00
+        );
 
-        // Game state synchronization
-        this.socket.on("serverGameUpdate", (gameState: GameStateContent) => {
-            this.gameState = gameState;
-            this.handleStateTransition();
-        });
-
-        // Timer update listener
-        this.socket.on("serverTimerUpdate", (data: { timeRemaining: number, totalTime: number }) => {
-            this.updateTimerUI(data.timeRemaining, data.totalTime);
-        });
-
-        // Other player tracking listeners
-        this.setupMultiplayerListeners();
-    }
-
-    private setupMultiplayerListeners(): void {
-        // Ensure socket is defined
-        if (!this.socket) {
-            console.error("Socket not initialized in setupMultiplayerListeners");
-            return;
-        }
-
-        // Synchronized mouse tracking
-        this.socket.on('serverMouseMove', (data: { socketId: string, x: number, y: number }) => {
-            if (data.socketId !== this.socket.id) {
-                this.updateOtherPlayerCursor(data.socketId, data.x, data.y);
-            }
-        });
-
-        // Synchronized shadow hover
-        this.socket.on('serverShadowHover', (data: { texture: string, isHovering: boolean }) => {
-            this.handleShadowHover(data.texture, data.isHovering);
-        });
+        // Remove any existing local cursor
+        if (this.localCursor) {
+            this.localCursor.destroy();
+        }*/
     }
 
     private setupMouseTracking(): void {
-        // Ensure socket is defined
-        if (!this.socket) {
-            console.error("Socket not initialized in setupMouseTracking");
-            return;
-        }
-
+        // Remove previous listeners to prevent duplicates
         this.input.off('pointermove');
+
+        // Track and emit local mouse position
         this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
-            if (this.gameState.currentState !== GameState.GAME_OVER) {
+            if (!this.isGameOver) {
                 this.socket.emit('clientMouseMove', {
                     x: pointer.x,
                     y: pointer.y
@@ -233,6 +101,7 @@ export default class Level extends Phaser.Scene {
     }
 
     private setupShadowInteractions(): void {
+        // Reset shadow container
         if (this.shadowContainer) {
             this.shadowContainer.destroy();
         }
@@ -250,75 +119,170 @@ export default class Level extends Phaser.Scene {
             shadow.setScale(this.CONFIG.shadows.scale);
             this.shadowContainer.addShadow(shadow);
 
+            // Synchronized hover effects
             shadow.setInteractive();
             
+            // Only allow interactions if not game over
             shadow.on('pointerover', () => {
-                if (this.gameState.currentState !== GameState.GAME_OVER) {
+                if (!this.isGameOver) {
                     this.socket.emit('clientShadowHover', { 
                         texture: texture, 
                         isHovering: true 
                     });
+
+                    // Local hover effect
                     this.handleShadowHover(texture, true);
                 }
             });
 
             shadow.on('pointerout', () => {
-                if (this.gameState.currentState !== GameState.GAME_OVER) {
+                if (!this.isGameOver) {
                     this.socket.emit('clientShadowHover', { 
                         texture: texture, 
                         isHovering: false 
                     });
+
+                    // Local hover effect
                     this.handleShadowHover(texture, false);
                 }
             });
 
             shadow.on("pointerdown", () => {
-                this.handleShadowGuess(texture);
+                if (!this.isGameOver) {
+                    this.socket.emit("clientGuessShadow", { guess: texture });
+                }
             });
         });
     }
 
-    private handleShadowGuess(shadowTexture: string): void {
-        if (this.gameState.currentState === GameState.GAME_OVER) return;
+    private setupNetwork(): void {
+        // Disconnect previous socket if exists
+        if (this.socket) {
+            this.socket.disconnect();
+        }
 
-        const isCorrect = shadowTexture === this.gameState.correctShadow;
-        
-        this.updateGameState({
-            currentState: isCorrect ? GameState.CORRECT_GUESS : GameState.INCORRECT_GUESS,
-            guessedShadows: [...this.gameState.guessedShadows, shadowTexture],
-            wrongGuessCount: isCorrect ? this.gameState.wrongGuessCount : this.gameState.wrongGuessCount + 1,
-            lastGuess: {
-                texture: shadowTexture,
-                isCorrect: isCorrect,
-                timestamp: Date.now()
+        this.socket = io("http://localhost:3000");
+
+        // Timer update listener
+        this.socket.on("serverTimerUpdate", (data: { timeRemaining: number, totalTime: number }) => {
+            this.updateTimerUI(data.timeRemaining, data.totalTime);
+        });
+
+        // Game state updates
+        this.socket.on("serverGameUpdate", (gameState: GameStateContent) => {
+            this.handleGameStateUpdate(gameState);
+        });
+
+        // Synchronized messages
+        this.socket.on("serverMessage", (message: { text: string }) => {
+            this.showMessage(message.text, message.text === "Game Over!" ? "#ff0000" : "#00ff00");
+            
+            // Check if game is over
+            if (message.text === "Game Over!") {
+                this.isGameOver = true;
+                this.shadowContainer.disableAllShadows();
             }
         });
+
+        // Synchronized mouse tracking
+        this.socket.on('serverMouseMove', (data: { socketId: string, x: number, y: number }) => {
+            // Only update other player's cursor if not the local player
+            if (data.socketId !== this.socket.id) {
+                this.updateOtherPlayerCursor(data.socketId, data.x, data.y);
+            }
+        });
+
+        // Synchronized shadow hover
+        this.socket.on('serverShadowHover', (data: { texture: string, isHovering: boolean }) => {
+            this.handleShadowHover(data.texture, data.isHovering);
+        });
+
+        // Synchronized game reset
+        this.socket.on('serverGameReset', () => {
+            this.resetGameState();
+        });
+
+        // New listener for explicitly showing game over screen
+        this.socket.on('serverShowGameOverScreen', (message: { text: string }) => {
+            this.showMessage(message.text, "#ff0000");
+            this.isGameOver = true;
+            this.showGameOverScreen();
+            this.shadowContainer.disableAllShadows();
+        });
+    }
+
+    private resetGameState(): void {
+        this.isGameOver = false;
+        
+        // Clear game over elements
+        if (this.gameOverText) this.gameOverText.destroy();
+        if (this.retryButton) this.retryButton.destroy();
+        if (this.retryText) this.retryText.destroy();
+
+        // Reset scene
+        this.setupScene();
+        this.setupShadowInteractions();
+        this.setupMouseTracking();
+
+        // Recreate other player cursors
+        Object.values(this.otherPlayerCursors).forEach(cursor => cursor.destroy());
+        this.otherPlayerCursors = {};
     }
 
     private updateTimerUI(timeRemaining: number, totalTime: number): void {
-        this.gameState.timeRemaining = timeRemaining;
-        this.gameState.totalTime = totalTime;
+        this.timeRemaining = timeRemaining;
+        this.totalTime = totalTime;
 
-        this.timerText.setText(`${timeRemaining}`);
+        // Update timer text
+        this.timerText.setText(`${this.timeRemaining}`);
 
-        if (timeRemaining <= 3) {
+        // Update timer bar width
+        /*const barWidth = (timeRemaining / totalTime) * 100;
+        this.timerBar.width = barWidth;*/
+
+        // Change color and text when time is low
+        if (this.timeRemaining <= 3) {
             this.timerText.setColor('#ff0000');
+            //this.timerBar.setFillStyle(0xff0000);
         } else {
             this.timerText.setColor('#ffffff');
+            //this.timerBar.setFillStyle(0x00ff00);
         }
 
-        if (timeRemaining <= 0) {
-            this.updateGameState({ 
-                currentState: GameState.TIME_UP 
-            });
+        // Handle game over when time expires
+        if (this.timeRemaining <= 0) {
+            this.isGameOver = true;
+            this.showGameOverScreen();
+        }
+    }
+
+    private updateOtherPlayerCursor(socketId: string, x: number, y: number): void {
+        // Create or update cursor for each player (excluding local player)
+        if (!this.otherPlayerCursors[socketId]) {
+            this.otherPlayerCursors[socketId] = this.add.image(x, y, 'otherMouse');
+        } else {
+            this.otherPlayerCursors[socketId].setPosition(x, y);
+        }
+    }
+
+    private handleShadowHover(texture: string, isHovering: boolean): void {
+        if (this.isGameOver) return;
+    
+        const shadow = this.shadowContainer.getShadowByTexture(texture);
+        if (shadow) {
+            if (isHovering) {
+                shadow.setScale(this.CONFIG.shadows.scale * 1.1);
+            } else {
+                shadow.setScale(this.CONFIG.shadows.scale);
+            }
         }
     }
 
     private showGameOverScreen(): void {
-        // Clear previous game over elements
-        [this.gameOverText, this.retryButton, this.retryText].forEach(element => {
-            if (element) element.destroy();
-        });
+        // Clear any existing game over elements
+        if (this.gameOverText) this.gameOverText.destroy();
+        if (this.retryButton) this.retryButton.destroy();
+        if (this.retryText) this.retryText.destroy();
 
         this.gameOverText = this.add.text(
             this.scale.width / 2,
@@ -352,38 +316,26 @@ export default class Level extends Phaser.Scene {
         this.retryText.setInteractive();
 
         const retryHandler = () => {
-            this.updateGameState({
-                currentState: GameState.RESET,
-                wrongGuessCount: 0,
-                guessedShadows: [],
-                timeRemaining: this.gameState.totalTime
-            });
+            this.socket.emit("clientResetGame");
         };
 
         this.retryButton.on('pointerdown', retryHandler);
         this.retryText.on('pointerdown', retryHandler);
 
+        // Disable shadows
         this.shadowContainer.disableAllShadows();
     }
 
-    private updateOtherPlayerCursor(socketId: string, x: number, y: number): void {
-        if (!this.otherPlayerCursors[socketId]) {
-            this.otherPlayerCursors[socketId] = this.add.image(x, y, 'otherMouse');
-        } else {
-            this.otherPlayerCursors[socketId].setPosition(x, y);
+    private handleGameStateUpdate(gameState: GameStateContent | null): void {
+        if (!gameState) {
+            this.shadowContainer.enableAllShadows();
+            return;
         }
-    }
 
-    private handleShadowHover(texture: string, isHovering: boolean): void {
-        if (this.gameState.currentState === GameState.GAME_OVER) return;
-    
-        const shadow = this.shadowContainer.getShadowByTexture(texture);
-        if (shadow) {
-            shadow.setScale(
-                isHovering 
-                    ? this.CONFIG.shadows.scale * 1.1 
-                    : this.CONFIG.shadows.scale
-            );
+        if (gameState.wrongGuessCount >= 3) {
+            this.isGameOver = true;
+            this.showGameOverScreen();
+            this.shadowContainer.disableAllShadows();
         }
     }
 

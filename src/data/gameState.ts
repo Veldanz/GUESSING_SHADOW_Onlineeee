@@ -9,17 +9,52 @@ export interface GamePermission {
     permissions: string[];
   }
 
-export interface GameStateContent {
-  mainPicture: string;           // ชื่อหรือคีย์ของภาพตัวอย่าง
-  shadows: ShadowData[];         // ข้อมูลเงาที่แสดงในเกม
-  correctShadow: string;         // คีย์ของเงาที่ถูกต้อง
-  guessedShadows: string[];      // คีย์ของเงาที่ผู้เล่นเคยเลือก
-  wrongGuessCount: number;       // จำนวนครั้งที่เลือกผิด
-  maxWrongGuesses: number;       // จำนวนครั้งที่ผิดได้สูงสุดก่อน Game Over
-  timeRemaining: number;         // เวลาที่เหลืออยู่
-  isGameOver: boolean;           // สถานะจบเกม
-  currentPlayer: string;         // ระบุผู้เล่นที่กำลังเล่น
-}
+  export interface GameStateContent {
+    // Game Configuration
+    gameMode: 'single' | 'multiplayer';
+    difficulty: 'easy' | 'medium' | 'hard';
+  
+    // Game Object Details
+    mainPicture: {
+      key: string;
+      scale: number;
+      position: { x: number; y: number };
+    };
+  
+    // Shadow-related Details
+    shadows: {
+      texture: string;
+      position: { x: number; y: number };
+      isCorrect: boolean;
+      isHovered: boolean;
+      isSelected: boolean;
+    }[];
+  
+    // Game Progress Tracking
+    correctShadow: string;
+    guessedShadows: string[];
+    wrongGuessCount: number;
+    maxWrongGuesses: number;
+  
+    // Timer Management
+    timeRemaining: number;
+    totalTime: number;
+    timerStatus: 'running' | 'paused' | 'stopped';
+  
+    // Game State Management
+    isGameOver: boolean;
+    gameResult: 'win' | 'lose' | 'ongoing';
+    currentLevel: number;
+  
+    // Player Information
+    currentPlayer: {
+      id: string | undefined;  // Change from string | null to string | undefined
+      mousePosition: { x: number; y: number };
+    };
+  
+    // Multiplayer Specific
+    connectedPlayers: string[];
+  }
 
 interface ShadowData {
   texture: string;               // ชื่อหรือคีย์ของเงา

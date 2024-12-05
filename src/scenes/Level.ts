@@ -94,11 +94,17 @@ export default class Level extends Phaser.Scene {
                 console.log('Socket connected');
                 this.socket?.emit('joinRoom', 'defaultRoom');
             });
-
+    
             this.socket.on('serverGameUpdate', (gameState: GameStateContent) => {
                 this.handleServerGameUpdate(gameState);
             });
-
+    
+            // Add listener for global refresh signal
+            this.socket.on('globalRefresh', () => {
+                console.log('Received global refresh signal');
+                window.location.reload();
+            });
+    
             this.socket.on('connect_error', (error) => {
                 console.error('Connection error:', error);
             });
@@ -239,6 +245,7 @@ export default class Level extends Phaser.Scene {
                 guessedShadow: null,
                 currentLevel: 1
             });
+            this.initiateGlobalRefresh();
         });
     }
 
@@ -288,5 +295,17 @@ export default class Level extends Phaser.Scene {
                 currentLevel: this.gameState.currentLevel + 1
             });
         });
+    }
+
+    private initiateGlobalRefresh(): void {
+        // Broadcast refresh to all clients in the room
+        if (this.socket && this.socket.connected) {
+            this.socket.emit('clientGameUpdate', {
+                type: 'GLOBAL_REFRESH',
+                timestamp: Date.now()
+            });
+        } else {
+            window.location.reload();
+        }
     }
 }

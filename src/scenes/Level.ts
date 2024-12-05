@@ -56,6 +56,8 @@ export default class Level extends Phaser.Scene {
         // Background
         this.add.image(this.scale.width / 2, this.scale.height / 2, "BG");
         this.add.image(this.scale.width / 2, this.scale.height / 2, "GRASS");
+        this.add.image(this.scale.width / 2, this.scale.height / 2, "Shadow_Panel");
+
 
         // Main picture
         const mainPicture = this.gameState.mainPicture;

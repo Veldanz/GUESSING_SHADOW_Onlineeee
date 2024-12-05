@@ -1,28 +1,32 @@
-import { SubscribeMessage, WebSocketGateway, WebSocketServer } from "@nestjs/websockets";
+import { SubscribeMessage, WebSocketGateway, WebSocketServer, OnGatewayConnection, OnGatewayDisconnect } from '@nestjs/websockets';
 import { Server, Socket } from "socket.io";
 import { Logger } from "@nestjs/common";
 import { GameStateContent } from "~/data/gameState";
 
-@WebSocketGateway({
-  cors: {
-      origin: '*',
-  },
-})
-export class SessionGateway {
-  @WebSocketServer()
-  private server!: Server;
-  private readonly logContext = "SessionGateway";
+@WebSocketGateway({ cors: true })
+export class SessionGateway implements OnGatewayConnection, OnGatewayDisconnect {
+    @WebSocketServer() server: Server;
+    private gameState: GameStateContent = {} as GameStateContent;
 
-  async handleConnection(socket: Socket): Promise<void> {
-      const roomId = "defaultRoom";
-      socket.join(roomId);
-      Logger.log(`Player connected: ${socket.id}`, this.logContext);
-  }
+    handleConnection(socket: Socket) {
+        console.log(`Client connected: ${socket.id}`);
+    }
+
+    handleDisconnect(socket: Socket) {
+        console.log(`Client disconnected: ${socket.id}`);
+    }
+
+    @SubscribeMessage('joinRoom')
+    handleJoinRoom(socket: Socket, room: string = 'defaultRoom'): void {
+        socket.join(room);
+        console.log(`Client ${socket.id} joined room ${room}`);
+    }
 
     @SubscribeMessage('clientGameUpdate')
     handleGameUpdate(socket: Socket, gameState: GameStateContent): void {
-        const roomId = "defaultRoom";
-        // Simply broadcast the received game state to all players
-        this.server.to(roomId).emit('serverGameUpdate', gameState);
+        // Simply broadcast the received game state to all players in the room
+        this.gameState = { ...gameState };
+        this.server.to('defaultRoom').emit('serverGameUpdate', this.gameState);
+        console.log(`Game state updated by ${socket.id}`);
     }
 }

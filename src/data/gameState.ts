@@ -10,6 +10,9 @@ export interface GamePermission {
   }
 
   export interface GameStateContent {
+    // Game State Management
+    currentState: 'GameStartState' | 'WaitingState' | 'GuessState' | 'RightState' | 'WrongState' | 'NextLevelState' | 'GameOverState' | 'ResetGameState';
+
     // Game Configuration
     gameMode: 'single' | 'multiplayer';
     difficulty: 'easy' | 'medium' | 'hard';
@@ -32,29 +35,27 @@ export interface GamePermission {
   
     // Game Progress Tracking
     correctShadow: string;
-    guessedShadows: string[];
-    wrongGuessCount: number;
-    maxWrongGuesses: number;
+    guessedShadow: string | null;
+    playerWrongCount: number;
+    playerMaxWrong: number;
   
     // Timer Management
     timeRemaining: number;
     totalTime: number;
     timerStatus: 'running' | 'paused' | 'stopped';
   
-    // Game State Management
-    isGameOver: boolean;
-    gameResult: 'win' | 'lose' | 'ongoing';
+    // Game Level Management
     currentLevel: number;
   
     // Player Information
     currentPlayer: {
-      id: string | undefined;  // Change from string | null to string | undefined
+      id: string | undefined;
       mousePosition: { x: number; y: number };
     };
   
     // Multiplayer Specific
     connectedPlayers: string[];
-  }
+}
 
 interface ShadowData {
   texture: string;               // ชื่อหรือคีย์ของเงา

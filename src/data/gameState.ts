@@ -57,12 +57,6 @@ export interface GamePermission {
     connectedPlayers: string[];
 }
 
-interface ShadowData {
-  texture: string;               // ชื่อหรือคีย์ของเงา
-  position: { x: number; y: number }; // ตำแหน่งของเงาในเกม
-  isHovered: boolean;            // สถานะ hover ของเงา
-}
-
 export interface UserInformation {
   sub: string | null;
   email_verified: boolean;

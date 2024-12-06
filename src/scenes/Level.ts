@@ -192,7 +192,7 @@ export default class Level extends Phaser.Scene {
         ).setOrigin(0.5);
 
         // Remove the text after 2 seconds
-        this.time.delayedCall(2000, () => {
+        this.time.delayedCall(500, () => {
             if (this.wrongText) {
                 this.wrongText.destroy();
                 this.wrongText = null;

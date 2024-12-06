@@ -17,6 +17,9 @@ export default class Shadow extends Phaser.GameObjects.Image {
     // Add to the scene
     scene.add.existing(this);
 
+    // Set default scale and size
+    this.setScale(0.45);
+
     // Enable input interaction
     this.setInteractive();
 

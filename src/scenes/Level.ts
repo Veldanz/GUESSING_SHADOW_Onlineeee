@@ -2,7 +2,7 @@ import Phaser from "phaser";
 import { io, Socket } from "socket.io-client";
 import ShadowContainer from "../prefabs/ShadowContainer";
 import Shadow from "../prefabs/Shadow";
-import { GameStateContent } from "~/data/gameState";
+import { GameStateContent,GameInfo, GamePermission } from "~/data/gameState";
 
 export default class Level extends Phaser.Scene {
     private socket: Socket | null = null;

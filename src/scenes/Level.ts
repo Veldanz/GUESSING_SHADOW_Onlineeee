@@ -1,91 +1,35 @@
 import Phaser from "phaser";
 import { io, Socket } from "socket.io-client";
-import ShadowContainer from "../prefabs/ShadowContainer";
-import Shadow from "../prefabs/Shadow";
-import { GameStateContent,GameInfo, GamePermission } from "~/data/gameState";
 
 export default class Level extends Phaser.Scene {
     private socket: Socket | null = null;
-    private shadowContainer!: ShadowContainer;
-    private gameState!: GameStateContent;
-    private wrongText: Phaser.GameObjects.Text | null = null;
+    private gameState: {
+        wordAnswer: string,
+        guessedLetter: string[],
+        wrongGuessCount: number,
+        maxWrongGuesses: number,
+        gameStatus: 'playing' | 'won' | 'lost'
+    } = {
+        wordAnswer: '',
+        guessedLetter: [],
+        wrongGuessCount: 0,
+        maxWrongGuesses: 6,
+        gameStatus: 'playing'
+    };
+
+    private shadowContainer!: Phaser.GameObjects.Container;
+    private letterContainer!: Phaser.GameObjects.Container;
+    private answerContainer!: Phaser.GameObjects.Container;
+    private hangmanParts!: Phaser.GameObjects.Group;
 
     constructor() {
         super({ key: "Level" });
     }
 
     create(): void {
-        this.initializeGameState();
         this.setupNetwork();
-        this.setupScene();
-    }
-
-    private initializeGameState(): void {
-        this.gameState = {
-            currentState: 'GameStartState',
-            gameMode: 'multiplayer',
-            difficulty: 'medium',
-            mainPicture: {
-                key: 'Pic_elephant',
-                scale: 0.6,
-                position: { x: this.scale.width / 2, y: this.scale.height / 3.5 }
-            },
-            shadows: [
-                { texture: 'shadow_elephant_f_1', position: { x: 200, y: 800 }, isCorrect: false, isHovered: false, isSelected: false },
-                { texture: 'shadow_elephant_f_2', position: { x: 700, y: 800 }, isCorrect: false, isHovered: false, isSelected: false },
-                { texture: 'shadow_elephant_t', position: { x: 1200, y: 800 }, isCorrect: true, isHovered: false, isSelected: false },
-                { texture: 'shadow_elephant_f_3', position: { x: 1700, y: 800 }, isCorrect: false, isHovered: false, isSelected: false }
-            ],
-            correctShadow: 'shadow_elephant_t',
-            guessedShadow: null,
-            playerWrongCount: 0,
-            playerMaxWrong: 3,
-            timeRemaining: 60,
-            totalTime: 60,
-            timerStatus: 'stopped',
-            currentLevel: 1,
-            currentPlayer: { id: '', mousePosition: { x: 0, y: 0 } },
-            connectedPlayers: []
-        };
-    }
-
-    private setupScene(): void {
-        // Clear previous scene elements
-        this.children.removeAll();
-
-        // Background
-        this.add.image(this.scale.width / 2, this.scale.height / 2, "BG");
-        this.add.image(this.scale.width / 2, this.scale.height / 2, "GRASS");
-        this.add.image(this.scale.width / 2, this.scale.height / 2, "Shadow_Panel");
-
-
-        // Main picture
-        const mainPicture = this.gameState.mainPicture;
-        this.add.image(mainPicture.position.x, mainPicture.position.y, mainPicture.key).setScale(mainPicture.scale);
-
-        // Setup shadow interactions
-        this.setupShadowInteractions();
-
-        // Update game state
-        this.safeUpdateGameState({ currentState: 'WaitingState' });
-    }
-
-    private setupShadowInteractions(): void {
-        // Destroy previous shadow container if exists
-        if (this.shadowContainer) {
-            this.shadowContainer.destroy();
-        }
-
-        // Create new shadow container
-        this.shadowContainer = new ShadowContainer(this, 0, 0);
-
-        // Setup shadows
-        this.gameState.shadows.forEach(shadowData => {
-            const shadow = new Shadow(this, shadowData.position.x, shadowData.position.y, shadowData.texture, shadowData.isCorrect);
-            shadow.setInteractive();
-            shadow.on('pointerdown', () => this.handleShadowGuess(shadowData.texture));
-            this.shadowContainer.addShadow(shadow);
-        });
+        this.createGameBoard();
+        this.requestNewGame();
     }
 
     private setupNetwork(): void {
@@ -94,220 +38,205 @@ export default class Level extends Phaser.Scene {
             
             this.socket.on('connect', () => {
                 console.log('Socket connected');
-                this.socket?.emit('joinRoom', 'defaultRoom');
+                this.socket?.emit('joinRoom', 'shadowHangman');
             });
-    
-            this.socket.on('serverGameUpdate', (gameState: GameStateContent) => {
-                this.handleServerGameUpdate(gameState);
-            });
-    
-            // Add listener for global refresh signal
-            this.socket.on('globalRefresh', () => {
-                console.log('Received global refresh signal');
-                window.location.reload();
-            });
-    
-            this.socket.on('connect_error', (error) => {
-                console.error('Connection error:', error);
+
+            this.socket.on('serverGameUpdate', (gameState) => {
+                this.updateGameState(gameState);
             });
         } catch (error) {
-            console.error('Error setting up socket:', error);
-            this.socket = null;
+            console.error('Network setup error:', error);
         }
     }
 
-    private handleShadowGuess(texture: string): void {
-        if (this.gameState.currentState !== 'WaitingState') return;
+    private createGameBoard(): void {
+        // Background
+        this.add.image(this.scale.width / 2, this.scale.height / 2, "BG");
 
-        // Remove any existing wrong text
-        if (this.wrongText) {
-            this.wrongText.destroy();
-            this.wrongText = null;
-        }
-
-        this.safeUpdateGameState({ 
-            currentState: 'GuessState', 
-            guessedShadow: texture 
+        // Hangman parts container
+        this.hangmanParts = this.add.group({
+            key: ['hangman_head', 'hangman_body', 'hangman_arm_left', 'hangman_arm_right', 'hangman_leg_left', 'hangman_leg_right'],
+            setScale: { x: 0.5, y: 0.5 },
+            visible: false
         });
 
-        const isCorrect = texture === this.gameState.correctShadow;
+        // Shadow container for game images
+        this.shadowContainer = this.add.container(this.scale.width / 2, this.scale.height / 3);
 
-        if (isCorrect) {
-            this.safeUpdateGameState({ 
-                currentState: 'RightState' 
-            });
-        } else {
-            this.safeUpdateGameState({ 
-                currentState: 'WrongState',
-                playerWrongCount: this.gameState.playerWrongCount + 1
-            });
-        }
+        // Letter selection container
+        this.letterContainer = this.createLetterContainer();
+
+        // Answer container
+        this.answerContainer = this.add.container(this.scale.width / 2, this.scale.height * 0.7);
     }
 
-    private handleServerGameUpdate(gameState: GameStateContent): void {
-        // Update the local game state with the server's game state
-        this.gameState = { ...gameState };
+    private createLetterContainer(): Phaser.GameObjects.Container {
+        const container = this.add.container(0, this.scale.height * 0.8);
+        const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
         
-        // Refresh the UI based on the new game state
-        this.refreshUI();
-    }
+        letters.forEach((letter, index) => {
+            const x = (index % 13) * 50;
+            const y = Math.floor(index / 13) * 50;
+            
+            const letterBox = this.add.rectangle(x, y, 40, 40, 0x888888)
+                .setInteractive()
+                .on('pointerdown', () => this.guessLetter(letter));
+            
+            const letterText = this.add.text(x, y, letter, { 
+                color: '#ffffff', 
+                fontSize: '24px' 
+            }).setOrigin(0.5);
 
-    private refreshUI(): void {
-        console.log('Refreshing UI with state:', this.gameState.currentState); // Add this
-        
-        switch (this.gameState.currentState) {
-            case 'GameStartState':
-                this.setupScene();
-                break;
-            case 'WaitingState':
-                // Reset any temporary visual states
-                break;
-            case 'RightState':
-                this.showRightStateUI();
-                break;
-            case 'WrongState':
-                this.handleWrongState();
-                break;
-            case 'GameOverState':
-                this.showGameOverUI();
-                break;
-            case 'ResetGameState':
-                console.log('Resetting game'); // Add this
-                this.resetGame();
-                break;
-        }
-    }
-
-    private handleWrongState(): void {
-        // Add "Wrong! Try Again" text
-        this.wrongText = this.add.text(
-            this.scale.width / 2, 
-            this.scale.height / 2, 
-            'Wrong! Try Again', 
-            { 
-                fontSize: '48px', 
-                color: '#ff0000',
-                padding: { x: 10, y: 10 }
-            }
-        ).setOrigin(0.5);
-
-        // Remove the text after 2 seconds
-        this.time.delayedCall(500, () => {
-            if (this.wrongText) {
-                this.wrongText.destroy();
-                this.wrongText = null;
-            }
+            container.add([letterBox, letterText]);
         });
 
-        if (this.gameState.playerWrongCount >= this.gameState.playerMaxWrong) {
-            this.safeUpdateGameState({ currentState: 'GameOverState' });
+        return container;
+    }
+
+    private requestNewGame(): void {
+        // Request a new word from server or generate one
+        const mockWords = ['ELEPHANT', 'GIRAFFE', 'RHINO', 'ZEBRA'];
+        const randomWord = mockWords[Math.floor(Math.random() * mockWords.length)];
+        this.initializeGame(randomWord);
+    }
+
+    private initializeGame(word: string): void {
+        // Reset game state
+        this.gameState = {
+            wordAnswer: word,
+            guessedLetter: [],
+            wrongGuessCount: 0,
+            maxWrongGuesses: 6,
+            gameStatus: 'playing'
+        };
+
+        // Clear previous answer boxes
+        this.answerContainer.removeAll(true);
+
+        // Create answer boxes
+        word.split('').forEach((_, index) => {
+            const box = this.add.rectangle(index * 50, 0, 40, 40, 0x333333);
+            this.answerContainer.add(box);
+        });
+
+        const hangmanPartChildren = this.hangmanParts.children.entries as Phaser.GameObjects.Sprite[];
+        hangmanPartChildren.forEach((part, index) => {
+            part.setVisible(false);
+            part.setPosition(this.scale.width / 2, this.scale.height / 3 + index * 50);
+        });
+        
+
+        // Update shadow/image for the game
+        this.updateGameImage(word);
+    }
+
+    private updateGameImage(word: string): void {
+        // Simple placeholder for updating game image based on word
+        const shadowKey = `shadow_${word.toLowerCase()}`;
+        const shadowSprite = this.add.image(0, 0, shadowKey || 'defaultShadow');
+        this.shadowContainer.removeAll(true);
+        this.shadowContainer.add(shadowSprite);
+    }
+
+    private guessLetter(letter: string): void {
+        // Prevent re-guessing or game-over states
+        if (this.gameState.guessedLetter.includes(letter) || 
+            this.gameState.gameStatus !== 'playing') return;
+
+        // Add to guessed letters
+        this.gameState.guessedLetter.push(letter);
+
+        // Check if letter is in word
+        if (this.gameState.wordAnswer.includes(letter)) {
+            this.revealLetters(letter);
+            this.checkGameWin();
         } else {
-            this.safeUpdateGameState({ currentState: 'WaitingState' });
+            this.handleWrongGuess();
+        }
+
+        // Update game state on server
+        this.sendGameUpdate();
+    }
+
+    private revealLetters(letter: string): void {
+        this.gameState.wordAnswer.split('').forEach((wordLetter, index) => {
+            if (wordLetter === letter) {
+                const answerBox = this.answerContainer.getAt(index) as Phaser.GameObjects.Rectangle;
+                answerBox.setFillStyle(0xffffff);
+                const revealText = this.add.text(
+                    answerBox.x, 
+                    answerBox.y, 
+                    letter, 
+                    { color: '#000000', fontSize: '24px' }
+                ).setOrigin(0.5);
+                this.answerContainer.add(revealText);
+            }
+        });
+    }
+
+    private handleWrongGuess(): void {
+        this.gameState.wrongGuessCount++;
+        
+        // Type assertion and null check
+        const hangmanPartChildren = this.hangmanParts.children.entries as Phaser.GameObjects.Sprite[];
+        const part = hangmanPartChildren[this.gameState.wrongGuessCount - 1];
+        if (part) {
+            part.setVisible(true);
+        }
+
+        // Check for game over
+        if (this.gameState.wrongGuessCount >= this.gameState.maxWrongGuesses) {
+            this.gameState.gameStatus = 'lost';
+            this.showGameOverScreen();
         }
     }
 
-    private showGameOverUI(): void {
-        console.log('Showing Game Over UI'); // Add this
-    
-        // Clear previous scene elements
-        this.children.removeAll();
-    
-        // Add "Game Over" text in red
+    private checkGameWin(): void {
+        const uniqueWordLetters = new Set(this.gameState.wordAnswer);
+        const guessedUniqueLetters = new Set(this.gameState.guessedLetter.filter(
+            letter => this.gameState.wordAnswer.includes(letter)
+        ));
+
+        if (uniqueWordLetters.size === guessedUniqueLetters.size) {
+            this.gameState.gameStatus = 'won';
+            this.showVictoryScreen();
+        }
+    }
+
+    private showGameOverScreen(): void {
         this.add.text(
             this.scale.width / 2, 
-            this.scale.height / 2 - 50, 
-            'Game Over', 
+            this.scale.height / 2, 
+            'Game Over!\nThe word was: ' + this.gameState.wordAnswer, 
             { 
-                fontSize: '64px', 
-                color: '#ff0000',
-                padding: { x: 10, y: 10 },
-                backgroundColor: '#444444'
+                color: '#ff0000', 
+                fontSize: '32px',
+                align: 'center'
             }
         ).setOrigin(0.5);
-    
-        // Add retry button
-        const retryButton = this.add.text(
-            this.scale.width / 2, 
-            this.scale.height / 2 + 50, 
-            'Retry', 
-            { 
-                fontSize: '32px', 
-                color: '#ffffff',
-                padding: { x: 10, y: 10 },
-                backgroundColor: '#444444'
-            }
-        ).setOrigin(0.5)
-        .setInteractive()
-        .on('pointerdown', () => {
-            console.log('Retry button clicked'); // Add this
-            // Emit a global reset game state
-            this.safeUpdateGameState({ 
-                currentState: 'ResetGameState',
-                playerWrongCount: 0,
-                guessedShadow: null,
-                currentLevel: 1
-            });
-            this.initiateGlobalRefresh();
-        });
     }
 
-    private resetGame(): void {
-        console.log('Reset game method called'); // Add this
-        // Reset the entire game state for all clients
-        this.safeUpdateGameState({
-            currentState: 'GameStartState', // Change to GameStartState to fully reset
-            guessedShadow: null,
-            playerWrongCount: 0,
-            currentLevel: 1,
-            shadows: [
-                { texture: 'shadow_elephant_f_1', position: { x: 200, y: 800 }, isCorrect: false, isHovered: false, isSelected: false },
-                { texture: 'shadow_elephant_f_2', position: { x: 700, y: 800 }, isCorrect: false, isHovered: false, isSelected: false },
-                { texture: 'shadow_elephant_t', position: { x: 1200, y: 800 }, isCorrect: true, isHovered: false, isSelected: false },
-                { texture: 'shadow_elephant_f_3', position: { x: 1700, y: 800 }, isCorrect: false, isHovered: false, isSelected: false }
-            ]
-        });
-    }
-
-    private safeUpdateGameState(updates: Partial<GameStateContent>): void {
-        // Update local game state
-        this.gameState = { ...this.gameState, ...updates };
-
-        // Safely emit game state update
-        if (this.socket && this.socket.connected) {
-            this.socket.emit('clientGameUpdate', this.gameState);
-        } else {
-            console.warn('Socket not available for game state update');
-        }
-    }
-
-    // Modify other methods similarly to use safeUpdateGameState
-    private showRightStateUI(): void {
-        // Add "Well done!" text
-        const text = this.add.text(
+    private showVictoryScreen(): void {
+        this.add.text(
             this.scale.width / 2, 
             this.scale.height / 2, 
-            'Well done!', 
-            { fontSize: '64px', color: '#00ff00' }
+            'Congratulations!\nYou Won!', 
+            { 
+                color: '#00ff00', 
+                fontSize: '32px',
+                align: 'center'
+            }
         ).setOrigin(0.5);
-
-        // Go to next level after a short delay
-        this.time.delayedCall(2000, () => {
-            this.safeUpdateGameState({ 
-                currentState: 'NextLevelState',
-                currentLevel: this.gameState.currentLevel + 1
-            });
-        });
     }
 
-    private initiateGlobalRefresh(): void {
-        // Broadcast refresh to all clients in the room
+    private sendGameUpdate(): void {
         if (this.socket && this.socket.connected) {
-            this.socket.emit('clientGameUpdate', {
-                type: 'GLOBAL_REFRESH',
-                timestamp: Date.now()
-            });
-        } else {
-            window.location.reload();
+            this.socket.emit('clientGameUpdate', this.gameState);
         }
+    }
+
+    private updateGameState(newState: any): void {
+        this.gameState = { ...this.gameState, ...newState };
+        // Additional UI update logic if needed
     }
 }

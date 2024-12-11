@@ -120,7 +120,7 @@ export default class Level extends Phaser.Scene {
             gameMode: "multiplayer",
             difficulty: "medium",
             mainPicture: {
-                key: mainPicture,
+                key: "Pic_elephant",
                 scale: 0.6,
                 position: { x: this.scale.width / 2, y: this.scale.height / 3.5 }
             },

@@ -10,6 +10,7 @@ export interface GamePermission {
   }
 
   export interface GameStateContent {
+    shadowAnswer: any;
     // Game State Management
     currentState: 'GameStartState' | 'WaitingState' | 'GuessState' | 'RightState' | 'WrongState' | 'NextLevelState' | 'GameOverState' | 'ResetGameState';
 
@@ -38,6 +39,7 @@ export interface GamePermission {
     guessedShadow: string | null;
     playerWrongCount: number;
     playerMaxWrong: number;
+    guessShadow: string[];
   
     // Timer Management
     timeRemaining: number;

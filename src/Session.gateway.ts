@@ -7,6 +7,7 @@ import { GameStateContent } from "~/data/gameState";
 export class SessionGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @WebSocketServer() server: Server;
     private gameState: GameStateContent = {} as GameStateContent;
+  sessionService: any;
 
     handleConnection(socket: Socket) {
         console.log(`Client connected: ${socket.id}`);
@@ -22,11 +23,20 @@ export class SessionGateway implements OnGatewayConnection, OnGatewayDisconnect 
         console.log(`Client ${socket.id} joined room ${room}`);
     }
 
-    @SubscribeMessage('clientGameUpdate')
-    handleGameUpdate(socket: Socket, gameState: GameStateContent): void {
-        // Simply broadcast the received game state to all players in the room
-        this.gameState = { ...gameState };
-        this.server.to('defaultRoom').emit('serverGameUpdate', this.gameState);
-        console.log(`Game state updated by ${socket.id}`);
+    @SubscribeMessage('clientChatMessage')
+    handleChatMessage(socket: Socket, payload: any) {
+      Logger.log(`chatMessage: ${JSON.stringify(payload)}`);
+      const room = this.sessionService.getRoomFromSocket(socket);
+  
+      this.server.to(room.sid).emit('chatMessage', payload);
     }
+
+    @SubscribeMessage('clientGameUpdate')
+  handleGameUpdate(socket: Socket, payload: any) {
+    const room = this.sessionService.getRoomFromSocket(socket);
+    room.gameState = payload;
+    console.info(`clientGameUpdate: ${JSON.stringify(room.gameState)}`);
+
+    this.server.to(room.sid).emit('serverGameUpdate', room.gameState);
+  }
 }

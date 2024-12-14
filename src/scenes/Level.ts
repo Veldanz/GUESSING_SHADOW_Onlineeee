@@ -2,7 +2,10 @@ import Phaser from "phaser";
 import ShadowContainer from "../prefabs/ShadowContainer";
 import Shadow from "../prefabs/Shadow";
 import { GameStateContent, GameInfo, UserInformation } from "~/data/gameState";
+import { io, Socket } from 'socket.io-client';
 export default class Level extends Phaser.Scene {
+
+    private socket: Socket;
 
 	constructor() {
 		super("Level");
@@ -34,7 +37,36 @@ export default class Level extends Phaser.Scene {
             this.initGame('debug');
         });
 
+                // Establish WebSocket connection
+                this.socket = io('http://localhost:3000', {
+                    // Optional connection options
+                    reconnection: true,
+                    reconnectionAttempts: 5,
+                    reconnectionDelay: 1000
+                });
+        
+                // Handle socket connection
+                this.socket.on('connect', () => {
+                    console.log('Socket connected with ID:', this.socket.id);
+                    
+                    // Join a room when connected
+                    this.joinRoom();
+                });
+        
+                // Listen for server game updates via socket
+                this.socket.on('serverGameUpdate', (gameState) => {
+                    this.updateState(gameState);
+                });
+
         this.requestUserInfo();
+        window.addEventListener('message', this.handleMessage);
+    }
+
+    joinRoom() {
+        // Use user info to create a unique room or use a predefined room
+        const roomName = this.userInfo?.preferred_username || 'defaultGameRoom';
+        
+        this.socket.emit('joinRoom', roomName);
     }
 
     requestGameStart() {
@@ -95,22 +127,21 @@ export default class Level extends Phaser.Scene {
         }
     };
 
-    postMessage = (message : Message) => {
-        // For web environment
-		if (window.parent !== window) {
-			console.info('PHASER(win) postMessage:', JSON.stringify(message));
-			window.parent.postMessage(
-				message,
-				'*'
-			);
-		}
-		// For React Native WebView
-		if (window.ReactNativeWebView) {
-			console.info('PHASER(native) postMessage:', JSON.stringify(message));
-			window.ReactNativeWebView.postMessage(
-				JSON.stringify(message)
-			);
-		}
+    postMessage = (message: Message) => {
+        if (message.type === 'clientGameUpdate') {
+            // Use socket to emit game updates
+            this.socket.emit('clientGameUpdate', message.payload);
+        } else {
+            // Fallback to existing postMessage for other message types
+            if (window.parent !== window) {
+                window.parent.postMessage(message, '*');
+            }
+            if (window.ReactNativeWebView) {
+                window.ReactNativeWebView.postMessage(JSON.stringify(message));
+            }
+        }
+
+        console.log('Sent to server');
     }
 
     guessShadow(texture: string) {
@@ -118,17 +149,15 @@ export default class Level extends Phaser.Scene {
             if (!this.gameState || this.gameState.currentState !== "WaitingState") return;
 
             const isCorrect = this.isGuessCorrect(texture);
-            this.gameState = {
+            const updatedGameState = {
                 ...this.gameState,
                 guessedShadow: texture,
                 playerWrongCount: isCorrect ? this.gameState.playerWrongCount : this.gameState.playerWrongCount + 1,
                 currentState: isCorrect ? "WaitingState" : "GuessState"
             };
 
-            this.postMessage({
-                type: "clientGameUpdate",
-                payload: this.gameState
-            });
+            // Emit game update via socket
+            this.socket.emit('clientGameUpdate', updatedGameState);
 
             isCorrect ? this.showRightStateUI() : this.showWrongStateUI();
         }
@@ -138,6 +167,12 @@ export default class Level extends Phaser.Scene {
     }
 
     initGame(mainPicture: string) {
+
+        if (this.gameState?.currentState === "WaitingState") {
+            console.warn("Game already initialized.");
+            return;
+        }
+
         if (!mainPicture) mainPicture = "Pic_elephant";
         
         this.gameState = {
@@ -161,7 +196,7 @@ export default class Level extends Phaser.Scene {
             currentPlayer: { id: "", mousePosition: { x: 0, y: 0 } },
             connectedPlayers: [],
 
-            shadowAnswer: '',  
+            shadowAnswer: 'shadow_elephant_t',  
             guessShadow: [],
         };
     
@@ -169,22 +204,26 @@ export default class Level extends Phaser.Scene {
         this.setupShadowInteractions();
         this.postMessage({
             type: "clientGameUpdate",
-            payload: this.gameState
+            payload: this.gameState,
         });
     }
 
     updateState(newState : any) {
         if (!newState) return;
-
+    
         var oldState = undefined;
         if (this.gameState) oldState = this.gameState;
         this.gameState = newState;
-
+    
         console.info(`PHASER currentState: ${JSON.stringify(this.gameState)}`);
-        if (this.gameState && oldState?.shadowAnswer != this.gameState?.shadowAnswer) this.initGame(this.gameState!.shadowAnswer);
-
+        if (this.gameState && oldState?.shadowAnswer != this.gameState?.shadowAnswer) {
+            this.initGame(this.gameState!.shadowAnswer);
+        }
+    
+        // Process previously guessed shadows
         this.gameState?.guessShadow.forEach(guessShadow => {
-
+            // Potentially update UI or game state based on previous guesses
+            this.guessShadow(guessShadow);
         });
     }
 
@@ -300,6 +339,67 @@ export default class Level extends Phaser.Scene {
             fontSize: config.fontSize,
             color: config.color
         }).setOrigin(0.5);
+    }
+
+    handleShadowClick(texture: string) {
+        // Only allow guessing when in the correct game state
+        if (!this.gameState || this.gameState.currentState !== "WaitingState") return;
+    
+        // Find the shadow in the shadows array
+        const shadowToGuess = this.gameState.shadows.find(shadow => shadow.texture === texture);
+        if (!shadowToGuess) return;
+    
+        // Check if the shadow has already been guessed
+        if (this.gameState.guessShadow.includes(texture)) {
+            console.log("This shadow has already been guessed");
+            return;
+        }
+    
+        // Update the specific shadow's state
+        const updatedShadows = this.gameState.shadows.map(shadow => 
+            shadow.texture === texture 
+                ? { ...shadow, isSelected: true, isHovered: false }
+                : shadow
+        );
+    
+        // Add the guessed shadow to the list of guessed shadows
+        const updatedGuessShadows = [...(this.gameState.guessShadow || []), texture];
+    
+        // Determine if the guess is correct
+        const isCorrect = this.isGuessCorrect(texture);
+    
+        // Update game state
+        this.gameState = {
+            ...this.gameState,
+            shadows: updatedShadows,
+            guessedShadow: texture,
+            guessShadow: updatedGuessShadows,
+            playerWrongCount: isCorrect ? this.gameState.playerWrongCount : this.gameState.playerWrongCount + 1,
+            currentState: isCorrect ? "WaitingState" : (
+                this.gameState.playerWrongCount + 1 >= this.gameState.playerMaxWrong 
+                ? "GameOverState" 
+                : "GuessState"
+            )
+        };
+    
+        // Update the visual representation of the shadow
+        const shadowContainer = this.shadowContainer;
+        if (shadowContainer) {
+            const shadowObject = shadowContainer.getShadowByTexture(texture);
+            if (shadowObject) {
+                shadowObject.setAlpha(0.5);  // Reduce opacity
+                shadowObject.setInteractive(false);  // Disable interaction
+            }
+        }
+    
+        // Send the updated game state
+        this.postMessage({
+            type: "clientGameUpdate",
+            payload: this.gameState
+        });
+    
+        // Show appropriate UI based on the guess
+        isCorrect ? this.showRightStateUI() : this.showWrongStateUI();
     }
 
 }
